@@ -1,0 +1,68 @@
+@page "/login"
+@layout LoginLayout
+@inject IApiClient ApiClient
+@inject JwtAuthenticationStateProvider AuthStateProvider
+@inject NavigationManager NavigationManager
+
+<MudContainer MaxWidth="MaxWidth.Small" Class="d-flex flex-column align-center justify-center" Style="height: 100vh;">
+    <MudPaper Class="pa-8" Width="400px" Elevation="4">
+        <MudText Typo="Typo.h5" Class="mb-1"><strong>Retail</strong>Sphere</MudText>
+        <MudText Typo="Typo.body2" Class="mb-6" Color="Color.Secondary">Sign in to your account</MudText>
+
+        <MudTextField T="string" Label="Email" @bind-Value="_email" Variant="Variant.Outlined" Class="mb-4"
+                      InputType="InputType.Email" Immediate="true" />
+        <MudTextField T="string" Label="Password" @bind-Value="_password" Variant="Variant.Outlined" Class="mb-2"
+                      InputType="InputType.Password" Immediate="true"
+                      OnKeyUp="@(async e => { if (e.Key == "Enter") await SubmitAsync(); })" />
+
+        @if (!string.IsNullOrWhiteSpace(_errorMessage))
+        {
+            <MudAlert Severity="Severity.Error" Class="mb-4" Dense="true">@_errorMessage</MudAlert>
+        }
+
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" FullWidth="true" Class="mt-2"
+                   Disabled="_isSubmitting" OnClick="SubmitAsync">
+            @(_isSubmitting ? "Signing in..." : "Sign in")
+        </MudButton>
+    </MudPaper>
+</MudContainer>
+
+@code {
+    private string _email = string.Empty;
+    private string _password = string.Empty;
+    private string? _errorMessage;
+    private bool _isSubmitting;
+
+    [SupplyParameterFromQuery]
+    private string? ReturnUrl { get; set; }
+
+    private async Task SubmitAsync()
+    {
+        _errorMessage = null;
+        _isSubmitting = true;
+
+        try
+        {
+            var result = await ApiClient.LoginAsync(new LoginRequest { Email = _email, Password = _password });
+
+            if (!result.Success || result.Data is null)
+            {
+                _errorMessage = result.Error?.Message ?? "Login failed.";
+                return;
+            }
+
+            await AuthStateProvider.SetSessionAsync(result.Data.AccessToken, result.Data.RefreshToken);
+
+            // No forceLoad here: the access token only lives in memory on
+            // JwtAuthenticationStateProvider (deliberately not persisted, to
+            // reduce XSS exposure). A full page reload restarts the whole WASM
+            // app and wipes it immediately, which is exactly what was bouncing
+            // this straight back to /login after a successful login.
+            NavigationManager.NavigateTo(string.IsNullOrWhiteSpace(ReturnUrl) ? "/" : ReturnUrl);
+        }
+        finally
+        {
+            _isSubmitting = false;
+        }
+    }
+}

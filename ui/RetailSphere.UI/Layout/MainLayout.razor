@@ -1,0 +1,95 @@
+@inherits LayoutComponentBase
+@using MudBlazor.Utilities
+@inject Blazored.LocalStorage.ILocalStorageService LocalStorage
+
+<MudThemeProvider Theme="@_theme" @bind-IsDarkMode="_isDarkMode" />
+<MudPopoverProvider />
+<MudDialogProvider />
+<MudSnackbarProvider />
+
+<MudLayout>
+    <RetailSphereHeader OnToggleDrawer="DrawerToggle" OnToggleTheme="ToggleThemeAsync" IsDarkMode="_isDarkMode" />
+
+    <MudDrawer @bind-Open="_drawerOpen"
+               @bind-Open:after="OnDrawerOpenChanged"
+               Class="main-menu"
+               Breakpoint="Breakpoint.Md"
+               Variant="@(_sidebarPinned ? DrawerVariant.Persistent : DrawerVariant.Mini)"
+               OpenMiniOnHover="@(!_sidebarPinned)">
+        <Sidebar @ref="_sidebarRef" @bind-IsPinned="_sidebarPinned" @bind-IsPinned:after="OnSidebarPinnedChanged" />
+    </MudDrawer>
+
+    <MudMainContent Style="padding-top: 16px;">
+        <MudContainer MaxWidth="MaxWidth.False" Class="pa-4">
+            @Body
+        </MudContainer>
+    </MudMainContent>
+</MudLayout>
+
+@code {
+    private Sidebar? _sidebarRef;
+    private bool _drawerOpen;
+    private bool _sidebarPinned;
+    private bool _isDarkMode;
+
+    // Mirrors the theme structure used in the existing WMC Platform.UI MainLayout —
+    // same LayoutProperties/Palette/Typography shape, RetailSphere-specific palette.
+    private readonly MudTheme _theme = new()
+    {
+        LayoutProperties = new LayoutProperties
+        {
+            DrawerWidthLeft = "260px",
+            DrawerMiniWidthLeft = "64px",
+        },
+        PaletteLight = new PaletteLight
+        {
+            Primary = new MudColor("#1B4D3E"),
+            AppbarBackground = new MudColor("#F4F6F5"),
+            TextPrimary = new MudColor("#0F172A"),
+        },
+        PaletteDark = new PaletteDark
+        {
+            Primary = new MudColor("#3FA98A"),
+            AppbarBackground = new MudColor("#111827"),
+        },
+        Typography = new Typography
+        {
+            Default = new DefaultTypography { FontFamily = ["Inter", "sans-serif"] },
+        },
+        ZIndex = new ZIndex { Popover = 1502, Snackbar = 1510 },
+    };
+
+    protected override async Task OnInitializedAsync()
+    {
+        _sidebarPinned = await LocalStorage.GetItemAsync<bool>("sidebar_pinned");
+        _isDarkMode = await LocalStorage.GetItemAsync<bool>("theme_dark");
+        _drawerOpen = _sidebarPinned;
+    }
+
+    private async Task OnSidebarPinnedChanged()
+    {
+        _drawerOpen = _sidebarPinned;
+        await LocalStorage.SetItemAsync("sidebar_pinned", _sidebarPinned);
+        StateHasChanged();
+    }
+
+    private void OnDrawerOpenChanged()
+    {
+        if (!_drawerOpen && !_sidebarPinned)
+            _sidebarRef?.CloseAllNavGroups();
+    }
+
+    private void DrawerToggle()
+    {
+        if (_sidebarPinned) return;
+        _drawerOpen = !_drawerOpen;
+        if (!_drawerOpen)
+            _sidebarRef?.CloseAllNavGroups();
+    }
+
+    private async Task ToggleThemeAsync()
+    {
+        _isDarkMode = !_isDarkMode;
+        await LocalStorage.SetItemAsync("theme_dark", _isDarkMode);
+    }
+}

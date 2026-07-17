@@ -1,0 +1,23 @@
+## .NET
+bin/
+obj/
+*.user
+*.suo
+.vs/
+
+## Blazor WASM publish
+wwwroot/service-worker-assets.js
+
+## Test results
+TestResults/
+test-results/
+
+## Env / secrets
+.env
+*.env.local
+appsettings.*.local.json
+**/keys/*.pem
+
+## OS
+.DS_Store
+Thumbs.db

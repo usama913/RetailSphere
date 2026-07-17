@@ -1,0 +1,9 @@
+**/bin/
+**/obj/
+**/.vs/
+**/TestResults/
+**/test-results/
+.git/
+.github/
+**/keys/*.pem
+*.md
