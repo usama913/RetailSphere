@@ -3,6 +3,7 @@ using FluentValidation;
 using Microsoft.Extensions.DependencyInjection;
 using RetailSphere.Application.Common.Behaviors;
 using RetailSphere.Application.Common.Services;
+using RetailSphere.Application.Features.Products.Common;
 using RetailSphere.Application.Features.Users.Common;
 
 namespace RetailSphere.Application;
@@ -25,6 +26,7 @@ public static class DependencyInjection
         services.AddScoped<UserClaimsResolver>();
         services.AddScoped<AuditLogService>();
         services.AddScoped<UserDtoAssembler>();
+        services.AddScoped<ProductDtoAssembler>();
 
         return services;
     }

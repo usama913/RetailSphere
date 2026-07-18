@@ -3,6 +3,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using RetailSphere.Application.Common.Interfaces;
 using RetailSphere.Domain.Auditing;
+using RetailSphere.Domain.Catalog;
 using RetailSphere.Domain.IdentityAccess;
 using RetailSphere.Domain.Organization;
 using RetailSphere.Persistence.Interceptors;
@@ -39,6 +40,12 @@ public static class DependencyInjection
         services.AddScoped<IRoleRepository, RoleRepository>();
         services.AddScoped<IBranchRepository, BranchRepository>();
         services.AddScoped<IAuditLogRepository, AuditLogRepository>();
+
+        services.AddScoped<ICategoryRepository, CategoryRepository>();
+        services.AddScoped<IBrandRepository, BrandRepository>();
+        services.AddScoped<IProductAttributeRepository, ProductAttributeRepository>();
+        services.AddScoped<IProductRepository, ProductRepository>();
+        services.AddScoped<IUnitRepository, UnitRepository>();
 
         return services;
     }

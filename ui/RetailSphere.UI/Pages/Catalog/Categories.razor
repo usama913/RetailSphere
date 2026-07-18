@@ -1,0 +1,225 @@
+@page "/catalog/categories"
+@using RetailSphere.Contracts.Catalog
+@attribute [Authorize]
+@inject IApiClient ApiClient
+@inject AuthenticationStateProvider AuthStateProvider
+@inject ISnackbar Snackbar
+
+<PageTitle>Categories - RetailSphere</PageTitle>
+
+@if (!_canView)
+{
+    <MudAlert Severity="Severity.Warning">You don't have permission to view categories.</MudAlert>
+}
+else
+{
+
+<MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween" Class="mb-4">
+    <div>
+        <MudText Typo="Typo.h5">Categories</MudText>
+        <MudText Typo="Typo.body2" Style="color: var(--mud-palette-text-secondary);">Organize products into a category/subcategory tree.</MudText>
+    </div>
+    @if (_canEdit)
+    {
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" OnClick="ShowCreateForm">
+            New Category
+        </MudButton>
+    }
+</MudStack>
+
+@if (_showForm)
+{
+    <MudPaper Class="pa-4 mb-4" Elevation="1">
+        <MudText Typo="Typo.h6" Class="mb-3">@(_editingId is null ? "New Category" : "Edit Category")</MudText>
+        <MudGrid>
+            <MudItem xs="12" sm="6">
+                <MudTextField @bind-Value="_formName" Label="Name" Variant="Variant.Outlined" Required="true" />
+            </MudItem>
+            <MudItem xs="12" sm="6">
+                <MudSelect T="long?" @bind-Value="_formParentCategoryId" Label="Parent Category" Variant="Variant.Outlined">
+                    <MudSelectItem T="long?" Value="@((long?)null)">— Top level —</MudSelectItem>
+                    @foreach (var category in _categories.Where(c => c.Id != _editingId))
+                    {
+                        <MudSelectItem T="long?" Value="@((long?)category.Id)">@category.Name</MudSelectItem>
+                    }
+                </MudSelect>
+            </MudItem>
+        </MudGrid>
+        <MudStack Row="true" Class="mt-4" Spacing="2">
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="SaveAsync" Disabled="@_isSaving">Save</MudButton>
+            <MudButton Variant="Variant.Text" OnClick="CancelForm">Cancel</MudButton>
+        </MudStack>
+    </MudPaper>
+}
+
+<MudTable Items="@_categories" Hover="true" Dense="true" Loading="@_isLoading">
+    <HeaderContent>
+        <MudTh>Name</MudTh>
+        <MudTh>Parent</MudTh>
+        <MudTh>Status</MudTh>
+        <MudTh>Actions</MudTh>
+    </HeaderContent>
+    <RowTemplate>
+        <MudTd DataLabel="Name">@context.Name</MudTd>
+        <MudTd DataLabel="Parent">@(GetParentName(context.ParentCategoryId) ?? "—")</MudTd>
+        <MudTd DataLabel="Status">
+            <MudChip T="string" Size="Size.Small" Color="@(context.IsActive ? Color.Success : Color.Default)">
+                @(context.IsActive ? "Active" : "Inactive")
+            </MudChip>
+        </MudTd>
+        <MudTd DataLabel="Actions">
+            @if (_canEdit)
+            {
+                <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small" OnClick="@(() => ShowEditForm(context))" />
+                @if (context.IsActive)
+                {
+                    <MudIconButton Icon="@Icons.Material.Filled.PauseCircle" Size="Size.Small" OnClick="@(() => DeactivateAsync(context.Id))" />
+                }
+                else
+                {
+                    <MudIconButton Icon="@Icons.Material.Filled.PlayCircle" Size="Size.Small" OnClick="@(() => ActivateAsync(context.Id))" />
+                }
+                <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" OnClick="@(() => DeleteAsync(context.Id))" />
+            }
+        </MudTd>
+    </RowTemplate>
+</MudTable>
+
+}
+
+@code {
+    private IReadOnlyList<CategoryDto> _categories = [];
+    private HashSet<string> _permissions = [];
+
+    private bool _isLoading = true;
+    private bool _isSaving;
+    private bool _showForm;
+    private long? _editingId;
+
+    private string _formName = string.Empty;
+    private long? _formParentCategoryId;
+
+    private bool _canView => _permissions.Contains("catalog.categories.view");
+    private bool _canEdit => _permissions.Contains("catalog.categories.edit");
+
+    protected override async Task OnInitializedAsync()
+    {
+        var state = await AuthStateProvider.GetAuthenticationStateAsync();
+        _permissions = state.User.FindAll("permission").Select(c => c.Value).ToHashSet();
+
+        if (_canView)
+        {
+            await LoadAsync();
+        }
+        else
+        {
+            _isLoading = false;
+        }
+    }
+
+    private async Task LoadAsync()
+    {
+        _isLoading = true;
+        var result = await ApiClient.GetCategoriesAsync(includeInactive: true);
+        if (result.Success && result.Data is not null)
+        {
+            _categories = result.Data;
+        }
+        else
+        {
+            Snackbar.Add(result.Error?.Message ?? "Failed to load categories.", Severity.Error);
+        }
+        _isLoading = false;
+    }
+
+    private string? GetParentName(long? parentId) =>
+        parentId is null ? null : _categories.FirstOrDefault(c => c.Id == parentId.Value)?.Name;
+
+    private void ShowCreateForm()
+    {
+        _editingId = null;
+        _formName = string.Empty;
+        _formParentCategoryId = null;
+        _showForm = true;
+    }
+
+    private void ShowEditForm(CategoryDto category)
+    {
+        _editingId = category.Id;
+        _formName = category.Name;
+        _formParentCategoryId = category.ParentCategoryId;
+        _showForm = true;
+    }
+
+    private void CancelForm() => _showForm = false;
+
+    private async Task SaveAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_formName))
+        {
+            Snackbar.Add("Category name is required.", Severity.Warning);
+            return;
+        }
+
+        _isSaving = true;
+
+        var result = _editingId is null
+            ? await ApiClient.CreateCategoryAsync(new CreateCategoryRequest { Name = _formName, ParentCategoryId = _formParentCategoryId })
+            : await ApiClient.UpdateCategoryAsync(_editingId.Value, new UpdateCategoryRequest { Name = _formName, ParentCategoryId = _formParentCategoryId });
+
+        if (result.Success)
+        {
+            Snackbar.Add("Category saved.", Severity.Success);
+            _showForm = false;
+            await LoadAsync();
+        }
+        else
+        {
+            Snackbar.Add(result.Error?.Message ?? "Failed to save category.", Severity.Error);
+        }
+
+        _isSaving = false;
+    }
+
+    private async Task ActivateAsync(long id)
+    {
+        var result = await ApiClient.ActivateCategoryAsync(id);
+        if (result.Success)
+        {
+            Snackbar.Add("Category activated.", Severity.Success);
+            await LoadAsync();
+        }
+        else
+        {
+            Snackbar.Add(result.Error?.Message ?? "Failed to activate category.", Severity.Error);
+        }
+    }
+
+    private async Task DeactivateAsync(long id)
+    {
+        var result = await ApiClient.DeactivateCategoryAsync(id);
+        if (result.Success)
+        {
+            Snackbar.Add("Category deactivated.", Severity.Success);
+            await LoadAsync();
+        }
+        else
+        {
+            Snackbar.Add(result.Error?.Message ?? "Failed to deactivate category.", Severity.Error);
+        }
+    }
+
+    private async Task DeleteAsync(long id)
+    {
+        var result = await ApiClient.DeleteCategoryAsync(id);
+        if (result.Success)
+        {
+            Snackbar.Add("Category deleted.", Severity.Success);
+            await LoadAsync();
+        }
+        else
+        {
+            Snackbar.Add(result.Error?.Message ?? "Failed to delete category.", Severity.Error);
+        }
+    }
+}

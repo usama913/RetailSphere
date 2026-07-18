@@ -1,0 +1,717 @@
+@page "/catalog/products"
+@using RetailSphere.Contracts.Catalog
+@attribute [Authorize]
+@inject IApiClient ApiClient
+@inject AuthenticationStateProvider AuthStateProvider
+@inject ISnackbar Snackbar
+
+<PageTitle>Products - RetailSphere</PageTitle>
+
+@if (!_canView)
+{
+    <MudAlert Severity="Severity.Warning">You don't have permission to view products.</MudAlert>
+}
+else
+{
+
+<MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween" Class="mb-4">
+    <div>
+        <MudText Typo="Typo.h5">Products</MudText>
+        <MudText Typo="Typo.body2" Style="color: var(--mud-palette-text-secondary);">Product templates and their sellable SKUs.</MudText>
+    </div>
+    @if (_canEdit)
+    {
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" OnClick="ShowCreateForm">
+            New Product
+        </MudButton>
+    }
+</MudStack>
+
+<MudGrid Class="mb-4">
+    <MudItem xs="12" sm="6" md="3">
+        <MudTextField T="string" Value="@_search" ValueChanged="OnSearchChanged" Label="Search by name"
+                      Variant="Variant.Outlined" Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search"
+                      Immediate="true" DebounceInterval="300" />
+    </MudItem>
+    <MudItem xs="12" sm="6" md="3">
+        <MudSelect T="long?" Value="_filterCategoryId" ValueChanged="OnFilterCategoryChanged" Label="Category" Variant="Variant.Outlined">
+            <MudSelectItem T="long?" Value="@((long?)null)">All categories</MudSelectItem>
+            @foreach (var category in _categories)
+            {
+                <MudSelectItem T="long?" Value="@((long?)category.Id)">@category.Name</MudSelectItem>
+            }
+        </MudSelect>
+    </MudItem>
+    <MudItem xs="12" sm="6" md="3">
+        <MudSelect T="long?" Value="_filterBrandId" ValueChanged="OnFilterBrandChanged" Label="Brand" Variant="Variant.Outlined">
+            <MudSelectItem T="long?" Value="@((long?)null)">All brands</MudSelectItem>
+            @foreach (var brand in _brands)
+            {
+                <MudSelectItem T="long?" Value="@((long?)brand.Id)">@brand.Name</MudSelectItem>
+            }
+        </MudSelect>
+    </MudItem>
+</MudGrid>
+
+@if (_showForm)
+{
+    <MudPaper Class="pa-4 mb-4" Elevation="1">
+        <MudText Typo="Typo.h6" Class="mb-3">@(_editingProductId is null ? "New Product" : "Edit Product")</MudText>
+        <MudGrid>
+            <MudItem xs="12" sm="6">
+                <MudTextField @bind-Value="_formName" Label="Name" Variant="Variant.Outlined" Required="true" />
+            </MudItem>
+            <MudItem xs="12" sm="6">
+                <MudTextField @bind-Value="_formDescription" Label="Description" Variant="Variant.Outlined" />
+            </MudItem>
+            <MudItem xs="12" sm="6">
+                <MudSelect T="long?" @bind-Value="_formCategoryId" Label="Category" Variant="Variant.Outlined">
+                    <MudSelectItem T="long?" Value="@((long?)null)">— None —</MudSelectItem>
+                    @foreach (var category in _categories)
+                    {
+                        <MudSelectItem T="long?" Value="@((long?)category.Id)">@category.Name</MudSelectItem>
+                    }
+                </MudSelect>
+            </MudItem>
+            <MudItem xs="12" sm="6">
+                <MudSelect T="long?" @bind-Value="_formBrandId" Label="Brand" Variant="Variant.Outlined">
+                    <MudSelectItem T="long?" Value="@((long?)null)">— None —</MudSelectItem>
+                    @foreach (var brand in _brands)
+                    {
+                        <MudSelectItem T="long?" Value="@((long?)brand.Id)">@brand.Name</MudSelectItem>
+                    }
+                </MudSelect>
+            </MudItem>
+            <MudItem xs="12" sm="6">
+                <MudSelect T="long?" @bind-Value="_formUnitId" Label="Unit" Variant="Variant.Outlined">
+                    <MudSelectItem T="long?" Value="@((long?)null)">— None —</MudSelectItem>
+                    @foreach (var unit in _units)
+                    {
+                        <MudSelectItem T="long?" Value="@((long?)unit.Id)">@unit.Name (@unit.ShortCode)</MudSelectItem>
+                    }
+                </MudSelect>
+            </MudItem>
+            <MudItem xs="12" sm="3" Class="d-flex align-center">
+                <MudCheckBox T="bool" @bind-Value="_formManageStock" Label="Manage stock" />
+            </MudItem>
+            <MudItem xs="12" sm="3" Class="d-flex align-center">
+                <MudCheckBox T="bool" @bind-Value="_formNotForSelling" Label="Not for selling" />
+            </MudItem>
+        </MudGrid>
+        <MudStack Row="true" Class="mt-4" Spacing="2">
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="SaveProductAsync" Disabled="@_isSaving">Save</MudButton>
+            <MudButton Variant="Variant.Text" OnClick="CancelForm">Close</MudButton>
+        </MudStack>
+
+        @if (_editingProductId is not null)
+        {
+            <MudDivider Class="my-4" />
+            <MudText Typo="Typo.subtitle1" Class="mb-2">Variants</MudText>
+
+            @if (_editingVariants.Count > 0)
+            {
+                <MudTable Items="@_editingVariants" Hover="true" Dense="true">
+                    <HeaderContent>
+                        <MudTh>SKU</MudTh>
+                        <MudTh>Barcode</MudTh>
+                        <MudTh>Cost</MudTh>
+                        <MudTh>Price</MudTh>
+                        <MudTh>Compare-at</MudTh>
+                        <MudTh>Tax %</MudTh>
+                        <MudTh>UOM</MudTh>
+                        <MudTh>Status</MudTh>
+                        <MudTh>Actions</MudTh>
+                    </HeaderContent>
+                    <RowTemplate>
+                        <MudTd DataLabel="SKU">@context.Sku</MudTd>
+                        <MudTd DataLabel="Barcode">@context.Barcode</MudTd>
+                        <MudTd DataLabel="Cost">@(context.CostPrice?.ToString("0.00") ?? "—")</MudTd>
+                        <MudTd DataLabel="Price">@context.Price.ToString("0.00")</MudTd>
+                        <MudTd DataLabel="Compare-at">@(context.CompareAtPrice?.ToString("0.00") ?? "—")</MudTd>
+                        <MudTd DataLabel="Tax %">@context.TaxRate.ToString("0.##") (@context.TaxType)</MudTd>
+                        <MudTd DataLabel="UOM">@context.UnitOfMeasure</MudTd>
+                        <MudTd DataLabel="Status">
+                            <MudChip T="string" Size="Size.Small" Color="@(context.IsActive ? Color.Success : Color.Default)">
+                                @(context.IsActive ? "Active" : "Inactive")
+                            </MudChip>
+                        </MudTd>
+                        <MudTd DataLabel="Actions">
+                            @if (context.IsActive)
+                            {
+                                <MudIconButton Icon="@Icons.Material.Filled.PauseCircle" Size="Size.Small" OnClick="@(() => DeactivateVariantAsync(context.Id))" />
+                            }
+                            else
+                            {
+                                <MudIconButton Icon="@Icons.Material.Filled.PlayCircle" Size="Size.Small" OnClick="@(() => ActivateVariantAsync(context.Id))" />
+                            }
+                            <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" OnClick="@(() => RemoveVariantAsync(context.Id))" />
+                        </MudTd>
+                    </RowTemplate>
+                </MudTable>
+            }
+
+            <MudGrid Class="mt-3">
+                <MudItem xs="12" sm="6" md="3">
+                    <MudTextField @bind-Value="_variantSku" Label="SKU (optional — auto-generated)" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                </MudItem>
+                <MudItem xs="12" sm="6" md="3">
+                    <MudTextField @bind-Value="_variantBarcode" Label="Barcode (optional)" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                </MudItem>
+                <MudItem xs="12" sm="6" md="3">
+                    <MudSelect T="string" @bind-Value="_variantBarcodeType" Label="Barcode type" Variant="Variant.Outlined" Margin="Margin.Dense">
+                        @foreach (var type in BarcodeTypes)
+                        {
+                            <MudSelectItem T="string" Value="@type">@type</MudSelectItem>
+                        }
+                    </MudSelect>
+                </MudItem>
+                <MudItem xs="12" sm="6" md="3">
+                    <MudNumericField @bind-Value="_variantCostPrice" Label="Cost price (optional)" Variant="Variant.Outlined" Margin="Margin.Dense" Min="0" />
+                </MudItem>
+                <MudItem xs="12" sm="6" md="3">
+                    <MudNumericField @bind-Value="_variantPrice" Label="Selling price" Variant="Variant.Outlined" Margin="Margin.Dense" Min="0" />
+                </MudItem>
+                <MudItem xs="12" sm="6" md="3">
+                    <MudNumericField @bind-Value="_variantCompareAtPrice" Label="Compare-at price (optional)" Variant="Variant.Outlined" Margin="Margin.Dense" Min="0" />
+                </MudItem>
+                <MudItem xs="12" sm="6" md="3">
+                    <MudNumericField @bind-Value="_variantTaxRate" Label="Tax rate %" Variant="Variant.Outlined" Margin="Margin.Dense" Min="0" Max="100" />
+                </MudItem>
+                <MudItem xs="12" sm="6" md="3">
+                    <MudSelect T="string" @bind-Value="_variantTaxType" Label="Selling price tax type" Variant="Variant.Outlined" Margin="Margin.Dense">
+                        @foreach (var type in TaxTypes)
+                        {
+                            <MudSelectItem T="string" Value="@type">@type</MudSelectItem>
+                        }
+                    </MudSelect>
+                </MudItem>
+                <MudItem xs="12" sm="6" md="3">
+                    <MudTextField @bind-Value="_variantUnitOfMeasure" Label="Unit of measure" Variant="Variant.Outlined" Margin="Margin.Dense" Placeholder="Each" />
+                </MudItem>
+                <MudItem xs="12" sm="6" md="3">
+                    <MudNumericField @bind-Value="_variantWeight" Label="Weight (optional)" Variant="Variant.Outlined" Margin="Margin.Dense" Min="0" />
+                </MudItem>
+                <MudItem xs="12" sm="4" md="3">
+                    <MudNumericField @bind-Value="_variantLength" Label="Length (optional)" Variant="Variant.Outlined" Margin="Margin.Dense" Min="0" />
+                </MudItem>
+                <MudItem xs="12" sm="4" md="3">
+                    <MudNumericField @bind-Value="_variantWidth" Label="Width (optional)" Variant="Variant.Outlined" Margin="Margin.Dense" Min="0" />
+                </MudItem>
+                <MudItem xs="12" sm="4" md="3">
+                    <MudNumericField @bind-Value="_variantHeight" Label="Height (optional)" Variant="Variant.Outlined" Margin="Margin.Dense" Min="0" />
+                </MudItem>
+            </MudGrid>
+
+            @if (_attributes.Count > 0)
+            {
+                <MudText Typo="Typo.body2" Class="mt-3 mb-1">Attributes</MudText>
+                @foreach (var attribute in _attributes)
+                {
+                    <MudText Typo="Typo.caption" Style="color: var(--mud-palette-text-secondary);">@(attribute.Name)</MudText>
+                    <MudStack Row="true" Wrap="Wrap.Wrap" Spacing="2" Class="mb-2">
+                        @foreach (var value in attribute.Values)
+                        {
+                            <MudCheckBox T="bool"
+                                         Value="@_variantSelectedAttributeValueIds.Contains(value.Id)"
+                                         ValueChanged="@((bool v) => ToggleVariantAttributeValue(value.Id, v))"
+                                         Label="@value.Value"
+                                         Dense="true" />
+                        }
+                    </MudStack>
+                }
+            }
+
+            <MudButton Variant="Variant.Outlined" Color="Color.Primary" Class="mt-2" OnClick="AddVariantAsync">Add Variant</MudButton>
+
+            <MudDivider Class="my-4" />
+            <MudText Typo="Typo.subtitle1" Class="mb-2">Images</MudText>
+
+            @if (_editingImages.Count > 0)
+            {
+                @foreach (var image in _editingImages)
+                {
+                    <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2" Class="mb-1">
+                        <MudText Typo="Typo.body2" Style="word-break: break-all;">@image.Url</MudText>
+                        <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" OnClick="@(() => RemoveImageAsync(image.Id))" />
+                    </MudStack>
+                }
+            }
+
+            <MudStack Row="true" Spacing="2" Class="mt-2" AlignItems="AlignItems.Center">
+                <MudTextField @bind-Value="_imageUrl" Label="Image URL" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                <MudButton Variant="Variant.Outlined" Size="Size.Small" OnClick="AddImageAsync">Add</MudButton>
+            </MudStack>
+        }
+    </MudPaper>
+}
+
+<MudTable Items="@_products" Hover="true" Dense="true" Loading="@_isLoading">
+    <HeaderContent>
+        <MudTh>Name</MudTh>
+        <MudTh>Category</MudTh>
+        <MudTh>Brand</MudTh>
+        <MudTh>Variants</MudTh>
+        <MudTh>Status</MudTh>
+        <MudTh>Actions</MudTh>
+    </HeaderContent>
+    <RowTemplate>
+        <MudTd DataLabel="Name">@context.Name</MudTd>
+        <MudTd DataLabel="Category">@(context.CategoryName ?? "—")</MudTd>
+        <MudTd DataLabel="Brand">@(context.BrandName ?? "—")</MudTd>
+        <MudTd DataLabel="Variants">@context.Variants.Count</MudTd>
+        <MudTd DataLabel="Status">
+            <MudChip T="string" Size="Size.Small" Color="@(context.IsActive ? Color.Success : Color.Default)">
+                @(context.IsActive ? "Active" : "Inactive")
+            </MudChip>
+        </MudTd>
+        <MudTd DataLabel="Actions">
+            @if (_canEdit)
+            {
+                <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small" OnClick="@(() => ShowEditFormAsync(context.Id))" />
+                @if (context.IsActive)
+                {
+                    <MudIconButton Icon="@Icons.Material.Filled.PauseCircle" Size="Size.Small" OnClick="@(() => DeactivateProductAsync(context.Id))" />
+                }
+                else
+                {
+                    <MudIconButton Icon="@Icons.Material.Filled.PlayCircle" Size="Size.Small" OnClick="@(() => ActivateProductAsync(context.Id))" />
+                }
+                <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" OnClick="@(() => DeleteProductAsync(context.Id))" />
+            }
+        </MudTd>
+    </RowTemplate>
+</MudTable>
+
+<MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.Center" Class="mt-4" Spacing="4">
+    <MudIconButton Icon="@Icons.Material.Filled.ChevronLeft" Disabled="@(_page <= 1)" OnClick="@(() => ChangePageAsync(_page - 1))" />
+    <MudText Typo="Typo.body2">Page @_page of @_totalPages</MudText>
+    <MudIconButton Icon="@Icons.Material.Filled.ChevronRight" Disabled="@(_page >= _totalPages)" OnClick="@(() => ChangePageAsync(_page + 1))" />
+</MudStack>
+
+}
+
+@code {
+    private const int PageSize = 25;
+
+    private static readonly IReadOnlyList<string> BarcodeTypes = ["C128", "C39", "EAN13", "EAN8", "UPCA", "UPCE", "QRCODE"];
+    private static readonly IReadOnlyList<string> TaxTypes = ["Exclusive", "Inclusive"];
+
+    private IReadOnlyList<ProductDto> _products = [];
+    private IReadOnlyList<CategoryDto> _categories = [];
+    private IReadOnlyList<BrandDto> _brands = [];
+    private IReadOnlyList<UnitDto> _units = [];
+    private IReadOnlyList<ProductAttributeDto> _attributes = [];
+    private HashSet<string> _permissions = [];
+
+    private bool _isLoading = true;
+    private bool _isSaving;
+    private string _search = string.Empty;
+    private long? _filterCategoryId;
+    private long? _filterBrandId;
+    private int _page = 1;
+    private long _totalCount;
+    private int _totalPages = 1;
+
+    private bool _showForm;
+    private long? _editingProductId;
+    private string _formName = string.Empty;
+    private string? _formDescription;
+    private long? _formCategoryId;
+    private long? _formBrandId;
+    private long? _formUnitId;
+    private bool _formManageStock = true;
+    private bool _formNotForSelling;
+
+    private List<ProductVariantDto> _editingVariants = [];
+    private List<ProductImageDto> _editingImages = [];
+
+    private string? _variantSku;
+    private string? _variantBarcode;
+    private string _variantBarcodeType = "C128";
+    private decimal? _variantCostPrice;
+    private decimal _variantPrice;
+    private decimal? _variantCompareAtPrice;
+    private decimal _variantTaxRate;
+    private string _variantTaxType = "Exclusive";
+    private string? _variantUnitOfMeasure;
+    private decimal? _variantWeight;
+    private decimal? _variantLength;
+    private decimal? _variantWidth;
+    private decimal? _variantHeight;
+    private HashSet<long> _variantSelectedAttributeValueIds = [];
+
+    private string _imageUrl = string.Empty;
+
+    private bool _canView => _permissions.Contains("catalog.products.view");
+    private bool _canEdit => _permissions.Contains("catalog.products.edit");
+
+    protected override async Task OnInitializedAsync()
+    {
+        var state = await AuthStateProvider.GetAuthenticationStateAsync();
+        _permissions = state.User.FindAll("permission").Select(c => c.Value).ToHashSet();
+
+        if (_canView)
+        {
+            var categoriesResult = await ApiClient.GetCategoriesAsync(includeInactive: true);
+            if (categoriesResult.Success && categoriesResult.Data is not null)
+                _categories = categoriesResult.Data;
+
+            var brandsResult = await ApiClient.GetBrandsAsync(includeInactive: true);
+            if (brandsResult.Success && brandsResult.Data is not null)
+                _brands = brandsResult.Data;
+
+            var unitsResult = await ApiClient.GetUnitsAsync(includeInactive: true);
+            if (unitsResult.Success && unitsResult.Data is not null)
+                _units = unitsResult.Data;
+
+            var attributesResult = await ApiClient.GetProductAttributesAsync();
+            if (attributesResult.Success && attributesResult.Data is not null)
+                _attributes = attributesResult.Data;
+
+            await LoadAsync();
+        }
+        else
+        {
+            _isLoading = false;
+        }
+    }
+
+    private async Task LoadAsync()
+    {
+        _isLoading = true;
+
+        var result = await ApiClient.GetProductsAsync(_page, PageSize, string.IsNullOrWhiteSpace(_search) ? null : _search, _filterCategoryId, _filterBrandId);
+        if (result.Success && result.Data is not null)
+        {
+            _products = result.Data.Data;
+            _totalCount = result.Data.TotalCount;
+            _totalPages = Math.Max(1, (int)Math.Ceiling(_totalCount / (double)PageSize));
+        }
+        else
+        {
+            Snackbar.Add(result.Error?.Message ?? "Failed to load products.", Severity.Error);
+        }
+
+        _isLoading = false;
+    }
+
+    private async Task OnSearchChanged(string value)
+    {
+        _search = value;
+        _page = 1;
+        await LoadAsync();
+    }
+
+    private async Task OnFilterCategoryChanged(long? value)
+    {
+        _filterCategoryId = value;
+        _page = 1;
+        await LoadAsync();
+    }
+
+    private async Task OnFilterBrandChanged(long? value)
+    {
+        _filterBrandId = value;
+        _page = 1;
+        await LoadAsync();
+    }
+
+    private async Task ChangePageAsync(int newPage)
+    {
+        _page = newPage;
+        await LoadAsync();
+    }
+
+    private void ShowCreateForm()
+    {
+        _editingProductId = null;
+        _formName = string.Empty;
+        _formDescription = null;
+        _formCategoryId = null;
+        _formBrandId = null;
+        _formUnitId = null;
+        _formManageStock = true;
+        _formNotForSelling = false;
+        _editingVariants = [];
+        _editingImages = [];
+        ResetVariantForm();
+        _showForm = true;
+    }
+
+    private async Task ShowEditFormAsync(long productId)
+    {
+        var result = await ApiClient.GetProductByIdAsync(productId);
+        if (!result.Success || result.Data is null)
+        {
+            Snackbar.Add(result.Error?.Message ?? "Failed to load product.", Severity.Error);
+            return;
+        }
+
+        var product = result.Data;
+        _editingProductId = product.Id;
+        _formName = product.Name;
+        _formDescription = product.Description;
+        _formCategoryId = product.CategoryId;
+        _formBrandId = product.BrandId;
+        _formUnitId = product.UnitId;
+        _formManageStock = product.ManageStock;
+        _formNotForSelling = product.NotForSelling;
+        _editingVariants = product.Variants.ToList();
+        _editingImages = product.Images.ToList();
+        ResetVariantForm();
+        _showForm = true;
+    }
+
+    private void ResetVariantForm()
+    {
+        _variantSku = null;
+        _variantBarcode = null;
+        _variantBarcodeType = "C128";
+        _variantCostPrice = null;
+        _variantPrice = 0;
+        _variantCompareAtPrice = null;
+        _variantTaxRate = 0;
+        _variantTaxType = "Exclusive";
+        _variantUnitOfMeasure = null;
+        _variantWeight = null;
+        _variantLength = null;
+        _variantWidth = null;
+        _variantHeight = null;
+        _variantSelectedAttributeValueIds = [];
+        _imageUrl = string.Empty;
+    }
+
+    private void CancelForm() => _showForm = false;
+
+    private void ToggleVariantAttributeValue(long valueId, bool isSelected)
+    {
+        if (isSelected)
+        {
+            _variantSelectedAttributeValueIds.Add(valueId);
+        }
+        else
+        {
+            _variantSelectedAttributeValueIds.Remove(valueId);
+        }
+    }
+
+    private async Task SaveProductAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_formName))
+        {
+            Snackbar.Add("Product name is required.", Severity.Warning);
+            return;
+        }
+
+        _isSaving = true;
+
+        if (_editingProductId is null)
+        {
+            var createResult = await ApiClient.CreateProductAsync(new CreateProductRequest
+            {
+                Name = _formName,
+                Description = _formDescription,
+                CategoryId = _formCategoryId,
+                BrandId = _formBrandId,
+                UnitId = _formUnitId,
+                ManageStock = _formManageStock,
+                NotForSelling = _formNotForSelling,
+            });
+
+            if (createResult.Success && createResult.Data is not null)
+            {
+                Snackbar.Add("Product created — you can now add variants and images below.", Severity.Success);
+                _editingProductId = createResult.Data.Id;
+                _editingVariants = createResult.Data.Variants.ToList();
+                _editingImages = createResult.Data.Images.ToList();
+                await LoadAsync();
+            }
+            else
+            {
+                Snackbar.Add(createResult.Error?.Message ?? "Failed to create product.", Severity.Error);
+            }
+        }
+        else
+        {
+            var updateResult = await ApiClient.UpdateProductAsync(_editingProductId.Value, new UpdateProductRequest
+            {
+                Name = _formName,
+                Description = _formDescription,
+                CategoryId = _formCategoryId,
+                BrandId = _formBrandId,
+                UnitId = _formUnitId,
+                ManageStock = _formManageStock,
+                NotForSelling = _formNotForSelling,
+            });
+
+            if (updateResult.Success)
+            {
+                Snackbar.Add("Product saved.", Severity.Success);
+                await LoadAsync();
+            }
+            else
+            {
+                Snackbar.Add(updateResult.Error?.Message ?? "Failed to save product.", Severity.Error);
+            }
+        }
+
+        _isSaving = false;
+    }
+
+    private async Task AddVariantAsync()
+    {
+        if (_editingProductId is null)
+            return;
+
+        var result = await ApiClient.AddVariantAsync(_editingProductId.Value, new AddVariantRequest
+        {
+            Sku = string.IsNullOrWhiteSpace(_variantSku) ? null : _variantSku,
+            Barcode = string.IsNullOrWhiteSpace(_variantBarcode) ? null : _variantBarcode,
+            BarcodeType = _variantBarcodeType,
+            Price = _variantPrice,
+            CompareAtPrice = _variantCompareAtPrice,
+            CostPrice = _variantCostPrice,
+            TaxRate = _variantTaxRate,
+            TaxType = _variantTaxType,
+            UnitOfMeasure = string.IsNullOrWhiteSpace(_variantUnitOfMeasure) ? null : _variantUnitOfMeasure,
+            Weight = _variantWeight,
+            Length = _variantLength,
+            Width = _variantWidth,
+            Height = _variantHeight,
+            AttributeValueIds = _variantSelectedAttributeValueIds.ToList(),
+        });
+
+        if (result.Success && result.Data is not null)
+        {
+            Snackbar.Add("Variant added.", Severity.Success);
+            _editingVariants = result.Data.Variants.ToList();
+            ResetVariantForm();
+            await LoadAsync();
+        }
+        else
+        {
+            Snackbar.Add(result.Error?.Message ?? "Failed to add variant.", Severity.Error);
+        }
+    }
+
+    private async Task ActivateVariantAsync(long variantId)
+    {
+        if (_editingProductId is null) return;
+
+        var result = await ApiClient.ActivateVariantAsync(_editingProductId.Value, variantId);
+        if (result.Success && result.Data is not null)
+        {
+            _editingVariants = result.Data.Variants.ToList();
+        }
+        else
+        {
+            Snackbar.Add(result.Error?.Message ?? "Failed to activate variant.", Severity.Error);
+        }
+    }
+
+    private async Task DeactivateVariantAsync(long variantId)
+    {
+        if (_editingProductId is null) return;
+
+        var result = await ApiClient.DeactivateVariantAsync(_editingProductId.Value, variantId);
+        if (result.Success && result.Data is not null)
+        {
+            _editingVariants = result.Data.Variants.ToList();
+        }
+        else
+        {
+            Snackbar.Add(result.Error?.Message ?? "Failed to deactivate variant.", Severity.Error);
+        }
+    }
+
+    private async Task RemoveVariantAsync(long variantId)
+    {
+        if (_editingProductId is null) return;
+
+        var result = await ApiClient.RemoveVariantAsync(_editingProductId.Value, variantId);
+        if (result.Success && result.Data is not null)
+        {
+            Snackbar.Add("Variant removed.", Severity.Success);
+            _editingVariants = result.Data.Variants.ToList();
+            await LoadAsync();
+        }
+        else
+        {
+            Snackbar.Add(result.Error?.Message ?? "Failed to remove variant.", Severity.Error);
+        }
+    }
+
+    private async Task AddImageAsync()
+    {
+        if (_editingProductId is null || string.IsNullOrWhiteSpace(_imageUrl))
+            return;
+
+        var result = await ApiClient.AddProductImageAsync(_editingProductId.Value, new AddProductImageRequest { Url = _imageUrl });
+        if (result.Success && result.Data is not null)
+        {
+            _editingImages = result.Data.Images.ToList();
+            _imageUrl = string.Empty;
+        }
+        else
+        {
+            Snackbar.Add(result.Error?.Message ?? "Failed to add image.", Severity.Error);
+        }
+    }
+
+    private async Task RemoveImageAsync(long imageId)
+    {
+        if (_editingProductId is null) return;
+
+        var result = await ApiClient.RemoveProductImageAsync(_editingProductId.Value, imageId);
+        if (result.Success && result.Data is not null)
+        {
+            _editingImages = result.Data.Images.ToList();
+        }
+        else
+        {
+            Snackbar.Add(result.Error?.Message ?? "Failed to remove image.", Severity.Error);
+        }
+    }
+
+    private async Task ActivateProductAsync(long id)
+    {
+        var result = await ApiClient.ActivateProductAsync(id);
+        if (result.Success)
+        {
+            Snackbar.Add("Product activated.", Severity.Success);
+            await LoadAsync();
+        }
+        else
+        {
+            Snackbar.Add(result.Error?.Message ?? "Failed to activate product.", Severity.Error);
+        }
+    }
+
+    private async Task DeactivateProductAsync(long id)
+    {
+        var result = await ApiClient.DeactivateProductAsync(id);
+        if (result.Success)
+        {
+            Snackbar.Add("Product deactivated.", Severity.Success);
+            await LoadAsync();
+        }
+        else
+        {
+            Snackbar.Add(result.Error?.Message ?? "Failed to deactivate product.", Severity.Error);
+        }
+    }
+
+    private async Task DeleteProductAsync(long id)
+    {
+        var result = await ApiClient.DeleteProductAsync(id);
+        if (result.Success)
+        {
+            Snackbar.Add("Product deleted.", Severity.Success);
+            await LoadAsync();
+        }
+        else
+        {
+            Snackbar.Add(result.Error?.Message ?? "Failed to delete product.", Severity.Error);
+        }
+    }
+}

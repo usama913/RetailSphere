@@ -36,6 +36,8 @@ public static class PermissionCatalog
         new(23, "catalog.categories.edit", "Edit Categories", "Catalog"),
         new(24, "catalog.brands.view", "View Brands", "Catalog"),
         new(25, "catalog.brands.edit", "Edit Brands", "Catalog"),
+        new(26, "catalog.units.view", "View Units", "Catalog"),
+        new(27, "catalog.units.edit", "Edit Units", "Catalog"),
 
         // Inventory
         new(30, "inventory.stock.view", "View Branch Stock", "Inventory"),

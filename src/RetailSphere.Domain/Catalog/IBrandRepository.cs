@@ -1,0 +1,14 @@
+namespace RetailSphere.Domain.Catalog;
+
+public interface IBrandRepository
+{
+    Task<Brand?> GetByIdAsync(long id, CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<Brand>> GetAllAsync(bool includeInactive = false, CancellationToken cancellationToken = default);
+
+    void Add(Brand brand);
+
+    void Update(Brand brand);
+
+    void Remove(Brand brand);
+}

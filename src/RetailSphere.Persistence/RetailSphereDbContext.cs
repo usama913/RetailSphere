@@ -3,6 +3,7 @@ using MediatR;
 using Microsoft.EntityFrameworkCore;
 using RetailSphere.Application.Common.Interfaces;
 using RetailSphere.Domain.Auditing;
+using RetailSphere.Domain.Catalog;
 using RetailSphere.Domain.IdentityAccess;
 using RetailSphere.Domain.Organization;
 using RetailSphere.SharedKernel;
@@ -21,6 +22,16 @@ public sealed class RetailSphereDbContext(DbContextOptions<RetailSphereDbContext
     public DbSet<Branch> Branches => Set<Branch>();
 
     public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
+
+    public DbSet<Category> Categories => Set<Category>();
+
+    public DbSet<Brand> Brands => Set<Brand>();
+
+    public DbSet<ProductAttribute> ProductAttributes => Set<ProductAttribute>();
+
+    public DbSet<Product> Products => Set<Product>();
+
+    public DbSet<RetailSphere.Domain.Catalog.Unit> Units => Set<RetailSphere.Domain.Catalog.Unit>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

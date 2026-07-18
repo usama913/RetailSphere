@@ -1,0 +1,224 @@
+@page "/catalog/units"
+@using RetailSphere.Contracts.Catalog
+@attribute [Authorize]
+@inject IApiClient ApiClient
+@inject AuthenticationStateProvider AuthStateProvider
+@inject ISnackbar Snackbar
+
+<PageTitle>Units - RetailSphere</PageTitle>
+
+@if (!_canView)
+{
+    <MudAlert Severity="Severity.Warning">You don't have permission to view units.</MudAlert>
+}
+else
+{
+
+<MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween" Class="mb-4">
+    <div>
+        <MudText Typo="Typo.h5">Units</MudText>
+        <MudText Typo="Typo.body2" Style="color: var(--mud-palette-text-secondary);">Units of measure products are sold and stocked in.</MudText>
+    </div>
+    @if (_canEdit)
+    {
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" OnClick="ShowCreateForm">
+            New Unit
+        </MudButton>
+    }
+</MudStack>
+
+@if (_showForm)
+{
+    <MudPaper Class="pa-4 mb-4" Elevation="1">
+        <MudText Typo="Typo.h6" Class="mb-3">@(_editingId is null ? "New Unit" : "Edit Unit")</MudText>
+        <MudGrid>
+            <MudItem xs="12" sm="4">
+                <MudTextField @bind-Value="_formName" Label="Name" Variant="Variant.Outlined" Required="true" Placeholder="Kilogram" />
+            </MudItem>
+            <MudItem xs="12" sm="4">
+                <MudTextField @bind-Value="_formShortCode" Label="Short code" Variant="Variant.Outlined" Required="true" Placeholder="Kg" />
+            </MudItem>
+            <MudItem xs="12" sm="4" Class="d-flex align-center">
+                <MudCheckBox T="bool" @bind-Value="_formAllowDecimal" Label="Allow decimal quantities" />
+            </MudItem>
+        </MudGrid>
+        <MudStack Row="true" Class="mt-4" Spacing="2">
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="SaveAsync" Disabled="@_isSaving">Save</MudButton>
+            <MudButton Variant="Variant.Text" OnClick="CancelForm">Cancel</MudButton>
+        </MudStack>
+    </MudPaper>
+}
+
+<MudTable Items="@_units" Hover="true" Dense="true" Loading="@_isLoading">
+    <HeaderContent>
+        <MudTh>Name</MudTh>
+        <MudTh>Short code</MudTh>
+        <MudTh>Allows decimals</MudTh>
+        <MudTh>Status</MudTh>
+        <MudTh>Actions</MudTh>
+    </HeaderContent>
+    <RowTemplate>
+        <MudTd DataLabel="Name">@context.Name</MudTd>
+        <MudTd DataLabel="Short code">@context.ShortCode</MudTd>
+        <MudTd DataLabel="Allows decimals">@(context.AllowDecimal ? "Yes" : "No")</MudTd>
+        <MudTd DataLabel="Status">
+            <MudChip T="string" Size="Size.Small" Color="@(context.IsActive ? Color.Success : Color.Default)">
+                @(context.IsActive ? "Active" : "Inactive")
+            </MudChip>
+        </MudTd>
+        <MudTd DataLabel="Actions">
+            @if (_canEdit)
+            {
+                <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small" OnClick="@(() => ShowEditForm(context))" />
+                @if (context.IsActive)
+                {
+                    <MudIconButton Icon="@Icons.Material.Filled.PauseCircle" Size="Size.Small" OnClick="@(() => DeactivateAsync(context.Id))" />
+                }
+                else
+                {
+                    <MudIconButton Icon="@Icons.Material.Filled.PlayCircle" Size="Size.Small" OnClick="@(() => ActivateAsync(context.Id))" />
+                }
+                <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" OnClick="@(() => DeleteAsync(context.Id))" />
+            }
+        </MudTd>
+    </RowTemplate>
+</MudTable>
+
+}
+
+@code {
+    private IReadOnlyList<UnitDto> _units = [];
+    private HashSet<string> _permissions = [];
+
+    private bool _isLoading = true;
+    private bool _isSaving;
+    private bool _showForm;
+    private long? _editingId;
+
+    private string _formName = string.Empty;
+    private string _formShortCode = string.Empty;
+    private bool _formAllowDecimal = true;
+
+    private bool _canView => _permissions.Contains("catalog.units.view");
+    private bool _canEdit => _permissions.Contains("catalog.units.edit");
+
+    protected override async Task OnInitializedAsync()
+    {
+        var state = await AuthStateProvider.GetAuthenticationStateAsync();
+        _permissions = state.User.FindAll("permission").Select(c => c.Value).ToHashSet();
+
+        if (_canView)
+        {
+            await LoadAsync();
+        }
+        else
+        {
+            _isLoading = false;
+        }
+    }
+
+    private async Task LoadAsync()
+    {
+        _isLoading = true;
+        var result = await ApiClient.GetUnitsAsync(includeInactive: true);
+        if (result.Success && result.Data is not null)
+        {
+            _units = result.Data;
+        }
+        else
+        {
+            Snackbar.Add(result.Error?.Message ?? "Failed to load units.", Severity.Error);
+        }
+        _isLoading = false;
+    }
+
+    private void ShowCreateForm()
+    {
+        _editingId = null;
+        _formName = string.Empty;
+        _formShortCode = string.Empty;
+        _formAllowDecimal = true;
+        _showForm = true;
+    }
+
+    private void ShowEditForm(UnitDto unit)
+    {
+        _editingId = unit.Id;
+        _formName = unit.Name;
+        _formShortCode = unit.ShortCode;
+        _formAllowDecimal = unit.AllowDecimal;
+        _showForm = true;
+    }
+
+    private void CancelForm() => _showForm = false;
+
+    private async Task SaveAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_formName) || string.IsNullOrWhiteSpace(_formShortCode))
+        {
+            Snackbar.Add("Name and short code are required.", Severity.Warning);
+            return;
+        }
+
+        _isSaving = true;
+
+        var result = _editingId is null
+            ? await ApiClient.CreateUnitAsync(new CreateUnitRequest { Name = _formName, ShortCode = _formShortCode, AllowDecimal = _formAllowDecimal })
+            : await ApiClient.UpdateUnitAsync(_editingId.Value, new UpdateUnitRequest { Name = _formName, ShortCode = _formShortCode, AllowDecimal = _formAllowDecimal });
+
+        if (result.Success)
+        {
+            Snackbar.Add("Unit saved.", Severity.Success);
+            _showForm = false;
+            await LoadAsync();
+        }
+        else
+        {
+            Snackbar.Add(result.Error?.Message ?? "Failed to save unit.", Severity.Error);
+        }
+
+        _isSaving = false;
+    }
+
+    private async Task ActivateAsync(long id)
+    {
+        var result = await ApiClient.ActivateUnitAsync(id);
+        if (result.Success)
+        {
+            Snackbar.Add("Unit activated.", Severity.Success);
+            await LoadAsync();
+        }
+        else
+        {
+            Snackbar.Add(result.Error?.Message ?? "Failed to activate unit.", Severity.Error);
+        }
+    }
+
+    private async Task DeactivateAsync(long id)
+    {
+        var result = await ApiClient.DeactivateUnitAsync(id);
+        if (result.Success)
+        {
+            Snackbar.Add("Unit deactivated.", Severity.Success);
+            await LoadAsync();
+        }
+        else
+        {
+            Snackbar.Add(result.Error?.Message ?? "Failed to deactivate unit.", Severity.Error);
+        }
+    }
+
+    private async Task DeleteAsync(long id)
+    {
+        var result = await ApiClient.DeleteUnitAsync(id);
+        if (result.Success)
+        {
+            Snackbar.Add("Unit deleted.", Severity.Success);
+            await LoadAsync();
+        }
+        else
+        {
+            Snackbar.Add(result.Error?.Message ?? "Failed to delete unit.", Severity.Error);
+        }
+    }
+}

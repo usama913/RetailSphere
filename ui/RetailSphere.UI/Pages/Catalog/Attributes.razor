@@ -1,0 +1,218 @@
+@page "/catalog/attributes"
+@using RetailSphere.Contracts.Catalog
+@attribute [Authorize]
+@inject IApiClient ApiClient
+@inject AuthenticationStateProvider AuthStateProvider
+@inject ISnackbar Snackbar
+
+<PageTitle>Attributes - RetailSphere</PageTitle>
+
+@if (!_canView)
+{
+    <MudAlert Severity="Severity.Warning">You don't have permission to view attributes.</MudAlert>
+}
+else
+{
+
+<MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween" Class="mb-4">
+    <div>
+        <MudText Typo="Typo.h5">Product Attributes</MudText>
+        <MudText Typo="Typo.body2" Style="color: var(--mud-palette-text-secondary);">
+            Reusable attribute types (Size, Color, Material, ...) that product variants select values from.
+        </MudText>
+    </div>
+    @if (_canEdit)
+    {
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" OnClick="ShowCreateForm">
+            New Attribute
+        </MudButton>
+    }
+</MudStack>
+
+@if (_showForm)
+{
+    <MudPaper Class="pa-4 mb-4" Elevation="1">
+        <MudText Typo="Typo.h6" Class="mb-3">New Attribute</MudText>
+        <MudTextField @bind-Value="_formName" Label="Name" Variant="Variant.Outlined" Required="true" Class="mb-3" />
+        <MudStack Row="true" Spacing="2">
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="SaveAsync" Disabled="@_isSaving">Save</MudButton>
+            <MudButton Variant="Variant.Text" OnClick="CancelForm">Cancel</MudButton>
+        </MudStack>
+    </MudPaper>
+}
+
+@if (_isLoading)
+{
+    <MudProgressCircular Indeterminate="true" Class="mt-4" />
+}
+else
+{
+    @foreach (var attribute in _attributes)
+    {
+        <MudPaper Class="pa-4 mb-3" Elevation="1">
+            <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween">
+                <MudText Typo="Typo.h6">@(attribute.Name)</MudText>
+                @if (_canEdit)
+                {
+                    <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" OnClick="@(() => DeleteAttributeAsync(attribute.Id))" />
+                }
+            </MudStack>
+
+            <MudStack Row="true" Wrap="Wrap.Wrap" Spacing="2" Class="mt-2" AlignItems="AlignItems.Center">
+                @foreach (var value in attribute.Values)
+                {
+                    <div class="d-flex align-center">
+                        <MudChip T="string" Size="Size.Small">@value.Value</MudChip>
+                        @if (_canEdit)
+                        {
+                            <MudIconButton Icon="@Icons.Material.Filled.Close" Size="Size.Small"
+                                           OnClick="@(() => RemoveValueAsync(attribute.Id, value.Id))" />
+                        }
+                    </div>
+                }
+            </MudStack>
+
+            @if (_canEdit)
+            {
+                <MudStack Row="true" Spacing="2" Class="mt-3" AlignItems="AlignItems.Center">
+                    <MudTextField T="string" Value="@GetNewValueDraft(attribute.Id)" ValueChanged="@(v => SetNewValueDraft(attribute.Id, v))"
+                                  Label="Add value" Variant="Variant.Outlined" Margin="Margin.Dense" Immediate="true" />
+                    <MudButton Variant="Variant.Outlined" Size="Size.Small" OnClick="@(() => AddValueAsync(attribute.Id))">Add</MudButton>
+                </MudStack>
+            }
+        </MudPaper>
+    }
+}
+
+}
+
+@code {
+    private IReadOnlyList<ProductAttributeDto> _attributes = [];
+    private HashSet<string> _permissions = [];
+    private readonly Dictionary<long, string> _newValueDrafts = new();
+
+    private bool _isLoading = true;
+    private bool _isSaving;
+    private bool _showForm;
+
+    private string _formName = string.Empty;
+
+    private bool _canView => _permissions.Contains("catalog.products.view");
+    private bool _canEdit => _permissions.Contains("catalog.products.edit");
+
+    protected override async Task OnInitializedAsync()
+    {
+        var state = await AuthStateProvider.GetAuthenticationStateAsync();
+        _permissions = state.User.FindAll("permission").Select(c => c.Value).ToHashSet();
+
+        if (_canView)
+        {
+            await LoadAsync();
+        }
+        else
+        {
+            _isLoading = false;
+        }
+    }
+
+    private async Task LoadAsync()
+    {
+        _isLoading = true;
+        var result = await ApiClient.GetProductAttributesAsync();
+        if (result.Success && result.Data is not null)
+        {
+            _attributes = result.Data;
+        }
+        else
+        {
+            Snackbar.Add(result.Error?.Message ?? "Failed to load attributes.", Severity.Error);
+        }
+        _isLoading = false;
+    }
+
+    private string GetNewValueDraft(long attributeId) =>
+        _newValueDrafts.TryGetValue(attributeId, out var draft) ? draft : string.Empty;
+
+    private void SetNewValueDraft(long attributeId, string value) => _newValueDrafts[attributeId] = value;
+
+    private void ShowCreateForm()
+    {
+        _formName = string.Empty;
+        _showForm = true;
+    }
+
+    private void CancelForm() => _showForm = false;
+
+    private async Task SaveAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_formName))
+        {
+            Snackbar.Add("Attribute name is required.", Severity.Warning);
+            return;
+        }
+
+        _isSaving = true;
+
+        var result = await ApiClient.CreateProductAttributeAsync(new CreateProductAttributeRequest { Name = _formName });
+        if (result.Success)
+        {
+            Snackbar.Add("Attribute created.", Severity.Success);
+            _showForm = false;
+            await LoadAsync();
+        }
+        else
+        {
+            Snackbar.Add(result.Error?.Message ?? "Failed to create attribute.", Severity.Error);
+        }
+
+        _isSaving = false;
+    }
+
+    private async Task AddValueAsync(long attributeId)
+    {
+        var value = GetNewValueDraft(attributeId);
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            Snackbar.Add("Enter a value first.", Severity.Warning);
+            return;
+        }
+
+        var result = await ApiClient.AddAttributeValueAsync(attributeId, new AddAttributeValueRequest { Value = value });
+        if (result.Success)
+        {
+            _newValueDrafts[attributeId] = string.Empty;
+            await LoadAsync();
+        }
+        else
+        {
+            Snackbar.Add(result.Error?.Message ?? "Failed to add value.", Severity.Error);
+        }
+    }
+
+    private async Task RemoveValueAsync(long attributeId, long valueId)
+    {
+        var result = await ApiClient.RemoveAttributeValueAsync(attributeId, valueId);
+        if (result.Success)
+        {
+            await LoadAsync();
+        }
+        else
+        {
+            Snackbar.Add(result.Error?.Message ?? "Failed to remove value.", Severity.Error);
+        }
+    }
+
+    private async Task DeleteAttributeAsync(long attributeId)
+    {
+        var result = await ApiClient.DeleteProductAttributeAsync(attributeId);
+        if (result.Success)
+        {
+            Snackbar.Add("Attribute deleted.", Severity.Success);
+            await LoadAsync();
+        }
+        else
+        {
+            Snackbar.Add(result.Error?.Message ?? "Failed to delete attribute.", Severity.Error);
+        }
+    }
+}

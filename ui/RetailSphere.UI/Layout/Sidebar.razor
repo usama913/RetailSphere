@@ -31,10 +31,12 @@
             </MudNavGroup>
 
             <MudNavGroup Title="Catalog" Icon="@Icons.Material.Filled.Category" @ref="_catalogGroup"
-                         hidden="@(!IsVisible("Catalog", "Products", "Categories", "Brands"))">
+                         hidden="@(!IsVisible("Catalog", "Products", "Categories", "Brands", "Attributes", "Units"))">
                 <MudNavLink Href="catalog/products" Icon="@Icons.Material.Filled.Checkroom" hidden="@(!HasPermission("catalog.products.view") || !IsVisible("Products"))">Products</MudNavLink>
                 <MudNavLink Href="catalog/categories" Icon="@Icons.Material.Filled.Category" hidden="@(!HasPermission("catalog.categories.view") || !IsVisible("Categories"))">Categories</MudNavLink>
                 <MudNavLink Href="catalog/brands" Icon="@Icons.Material.Filled.BrandingWatermark" hidden="@(!HasPermission("catalog.brands.view") || !IsVisible("Brands"))">Brands</MudNavLink>
+                <MudNavLink Href="catalog/attributes" Icon="@Icons.Material.Filled.Tune" hidden="@(!HasPermission("catalog.products.view") || !IsVisible("Attributes"))">Attributes</MudNavLink>
+                <MudNavLink Href="catalog/units" Icon="@Icons.Material.Filled.Straighten" hidden="@(!HasPermission("catalog.units.view") || !IsVisible("Units"))">Units</MudNavLink>
             </MudNavGroup>
 
             <MudNavGroup Title="Inventory" Icon="@Icons.Material.Filled.Inventory" @ref="_inventoryGroup"
