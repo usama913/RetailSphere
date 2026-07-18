@@ -14,7 +14,6 @@ public sealed record UpdateVariantCommand(
     decimal? CostPrice,
     decimal TaxRate,
     string? TaxType,
-    string? UnitOfMeasure,
     decimal? Weight,
     decimal? Length,
     decimal? Width,

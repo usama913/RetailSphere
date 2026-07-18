@@ -34,7 +34,6 @@ internal static class ProductMappings
         CostPrice = variant.CostPrice,
         TaxRate = variant.TaxRate,
         TaxType = variant.TaxType,
-        UnitOfMeasure = variant.UnitOfMeasure,
         Weight = variant.Weight,
         Length = variant.Length,
         Width = variant.Width,

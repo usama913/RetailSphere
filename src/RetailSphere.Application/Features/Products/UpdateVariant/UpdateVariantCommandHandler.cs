@@ -62,7 +62,6 @@ public sealed class UpdateVariantCommandHandler(
             request.TaxType,
             barcode,
             request.BarcodeType,
-            request.UnitOfMeasure,
             request.Weight,
             request.Length,
             request.Width,

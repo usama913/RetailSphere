@@ -80,7 +80,6 @@ public sealed class ProductVariantConfiguration : IEntityTypeConfiguration<Produ
         builder.Property(v => v.CostPrice).HasColumnType("decimal(18,2)");
         builder.Property(v => v.TaxRate).HasColumnType("decimal(5,2)").HasDefaultValue(0m);
         builder.Property(v => v.TaxType).HasMaxLength(20).HasDefaultValue("Exclusive").IsRequired();
-        builder.Property(v => v.UnitOfMeasure).HasMaxLength(20).HasDefaultValue("Each").IsRequired();
         builder.Property(v => v.Weight).HasColumnType("decimal(10,3)");
         builder.Property(v => v.Length).HasColumnType("decimal(10,3)");
         builder.Property(v => v.Width).HasColumnType("decimal(10,3)");

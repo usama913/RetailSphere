@@ -111,7 +111,6 @@ public sealed class Product : AggregateRoot<long>, IAuditableEntity, ISoftDeleta
         Money? costPrice,
         decimal taxRate,
         string? taxType,
-        string? unitOfMeasure,
         decimal? weight,
         decimal? length,
         decimal? width,
@@ -122,7 +121,7 @@ public sealed class Product : AggregateRoot<long>, IAuditableEntity, ISoftDeleta
             return Result.Failure<ProductVariant>(Error.Conflict("Product.DuplicateSku", "A variant with this SKU already exists on this product."));
 
         var variant = ProductVariant.Create(
-            Id, sku, price, barcode, barcodeType, compareAtPrice, costPrice, taxRate, taxType, unitOfMeasure, weight, length, width, height, attributeValueIds);
+            Id, sku, price, barcode, barcodeType, compareAtPrice, costPrice, taxRate, taxType, weight, length, width, height, attributeValueIds);
         _variants.Add(variant);
         return Result.Success(variant);
     }
@@ -136,7 +135,6 @@ public sealed class Product : AggregateRoot<long>, IAuditableEntity, ISoftDeleta
         string? taxType,
         Barcode? barcode,
         string? barcodeType,
-        string? unitOfMeasure,
         decimal? weight,
         decimal? length,
         decimal? width,
@@ -149,7 +147,7 @@ public sealed class Product : AggregateRoot<long>, IAuditableEntity, ISoftDeleta
 
         variant.UpdatePricing(price, compareAtPrice, costPrice, taxRate, taxType);
         variant.UpdateBarcode(barcode, barcodeType);
-        variant.UpdatePhysicalAttributes(unitOfMeasure, weight, length, width, height);
+        variant.UpdatePhysicalAttributes(weight, length, width, height);
         variant.UpdateAttributeSelections(attributeValueIds);
         return Result.Success();
     }

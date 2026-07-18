@@ -17,6 +17,11 @@ namespace RetailSphere.Domain.Catalog;
 /// Branch.CurrencyCode) currently needs. Callers still validate through
 /// Sku.Create/Barcode.Create/Money.Create before reaching these methods —
 /// only the already-validated `.Value`/`.Amount` gets stored.
+///
+/// Deliberately has no UnitOfMeasure of its own (removed — previously a free-text
+/// string defaulting to "Each") — every variant of a Product sells in that
+/// Product's Unit (Product.UnitId, master data), so a per-variant override was
+/// both redundant and a source of inconsistent values ("Piece" vs "Pieces" vs "pcs").
 /// </summary>
 public sealed class ProductVariant : Entity<long>
 {
@@ -50,9 +55,6 @@ public sealed class ProductVariant : Entity<long>
     /// <summary>"Exclusive" (tax added on top of Price) or "Inclusive" (Price already includes tax).</summary>
     public string TaxType { get; private set; } = "Exclusive";
 
-    /// <summary>e.g. "Each", "Kg", "Box", "Litre".</summary>
-    public string UnitOfMeasure { get; private set; } = "Each";
-
     public decimal? Weight { get; private set; }
 
     public decimal? Length { get; private set; }
@@ -80,7 +82,6 @@ public sealed class ProductVariant : Entity<long>
         Money? costPrice,
         decimal taxRate,
         string? taxType,
-        string? unitOfMeasure,
         decimal? weight,
         decimal? length,
         decimal? width,
@@ -98,7 +99,6 @@ public sealed class ProductVariant : Entity<long>
             CostPrice = costPrice?.Amount,
             TaxRate = taxRate,
             TaxType = NormalizeTaxType(taxType),
-            UnitOfMeasure = string.IsNullOrWhiteSpace(unitOfMeasure) ? "Each" : unitOfMeasure.Trim(),
             Weight = weight,
             Length = length,
             Width = width,
@@ -119,9 +119,8 @@ public sealed class ProductVariant : Entity<long>
         TaxType = NormalizeTaxType(taxType);
     }
 
-    internal void UpdatePhysicalAttributes(string? unitOfMeasure, decimal? weight, decimal? length, decimal? width, decimal? height)
+    internal void UpdatePhysicalAttributes(decimal? weight, decimal? length, decimal? width, decimal? height)
     {
-        UnitOfMeasure = string.IsNullOrWhiteSpace(unitOfMeasure) ? "Each" : unitOfMeasure.Trim();
         Weight = weight;
         Length = length;
         Width = width;

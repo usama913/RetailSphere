@@ -17,7 +17,6 @@ public sealed class UpdateVariantCommandValidator : AbstractValidator<UpdateVari
         RuleFor(x => x.TaxType).Must(t => ProductVariant.TaxTypes.Contains(t!))
             .When(x => !string.IsNullOrWhiteSpace(x.TaxType))
             .WithMessage("Tax type must be 'Exclusive' or 'Inclusive'.");
-        RuleFor(x => x.UnitOfMeasure).MaximumLength(20);
         RuleFor(x => x.Weight).GreaterThanOrEqualTo(0).When(x => x.Weight.HasValue);
         RuleFor(x => x.Length).GreaterThanOrEqualTo(0).When(x => x.Length.HasValue);
         RuleFor(x => x.Width).GreaterThanOrEqualTo(0).When(x => x.Width.HasValue);

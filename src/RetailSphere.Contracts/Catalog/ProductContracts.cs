@@ -20,8 +20,6 @@ public sealed class ProductVariantDto
 
     public required string TaxType { get; init; }
 
-    public required string UnitOfMeasure { get; init; }
-
     public decimal? Weight { get; init; }
 
     public decimal? Length { get; init; }
@@ -128,8 +126,6 @@ public sealed class AddVariantRequest
 
     public string? TaxType { get; init; }
 
-    public string? UnitOfMeasure { get; init; }
-
     public decimal? Weight { get; init; }
 
     public decimal? Length { get; init; }
@@ -156,8 +152,6 @@ public sealed class UpdateVariantRequest
     public decimal TaxRate { get; init; }
 
     public string? TaxType { get; init; }
-
-    public string? UnitOfMeasure { get; init; }
 
     public decimal? Weight { get; init; }
 

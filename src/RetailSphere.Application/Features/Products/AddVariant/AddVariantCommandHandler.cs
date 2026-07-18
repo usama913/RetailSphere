@@ -66,7 +66,6 @@ public sealed class AddVariantCommandHandler(
             costPrice,
             request.TaxRate,
             request.TaxType,
-            request.UnitOfMeasure,
             request.Weight,
             request.Length,
             request.Width,
