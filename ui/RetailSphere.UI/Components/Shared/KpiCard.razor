@@ -1,0 +1,20 @@
+<MudPaper Class="pa-4 rs-kpi-card" Elevation="1">
+    <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="3">
+        <div class="rs-kpi-icon" style="background: var(--mud-palette-@(AccentColorName)-hover); color: var(--mud-palette-@(AccentColorName));">
+            <MudIcon Icon="@Icon" Color="@AccentColor" Size="Size.Medium" />
+        </div>
+        <MudStack Spacing="0">
+            <MudText Typo="Typo.body2" Style="color: var(--mud-palette-text-secondary);">@Title</MudText>
+            <MudText Typo="Typo.h5">@Value</MudText>
+        </MudStack>
+    </MudStack>
+</MudPaper>
+
+@code {
+    [Parameter, EditorRequired] public string Title { get; set; } = string.Empty;
+    [Parameter, EditorRequired] public string Value { get; set; } = string.Empty;
+    [Parameter, EditorRequired] public string Icon { get; set; } = string.Empty;
+    [Parameter] public Color AccentColor { get; set; } = Color.Primary;
+
+    private string AccentColorName => AccentColor.ToString().ToLowerInvariant();
+}

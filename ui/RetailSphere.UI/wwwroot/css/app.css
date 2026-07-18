@@ -4,6 +4,35 @@ html, body {
     font-family: 'Inter', sans-serif;
 }
 
+/* MudMainContent renders the page background from the theme's Palette.Background
+   automatically, but give it breathing room + let cards (Surface color) stand out
+   against it rather than blending into a flat white page. */
+.rs-main-content {
+    min-height: 100vh;
+}
+
+.rs-kpi-card {
+    border-radius: 12px;
+    transition: box-shadow 0.15s ease-in-out;
+}
+
+.rs-kpi-card:hover {
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.08);
+}
+
+.rs-kpi-icon {
+    width: 44px;
+    height: 44px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.main-menu .mud-nav-link.active {
+    font-weight: 600;
+}
+
 .loading-splash {
     display: flex;
     align-items: center;

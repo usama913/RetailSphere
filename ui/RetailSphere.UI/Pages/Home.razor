@@ -3,36 +3,27 @@
 
 <PageTitle>Dashboard - RetailSphere</PageTitle>
 
-<MudText Typo="Typo.h4" Class="mb-4">Dashboard</MudText>
+<MudText Typo="Typo.h4" Class="mb-1">Dashboard</MudText>
+<MudText Typo="Typo.body2" Class="mb-6" Style="color: var(--mud-palette-text-secondary);">
+    Overview across all branches
+</MudText>
 
 <MudGrid>
     <MudItem xs="12" sm="6" md="3">
-        <MudPaper Class="pa-4" Elevation="1">
-            <MudText Typo="Typo.subtitle2" Color="Color.Secondary">Today's Sales</MudText>
-            <MudText Typo="Typo.h5">—</MudText>
-        </MudPaper>
+        <KpiCard Title="Today's Sales" Value="—" Icon="@Icons.Material.Filled.PointOfSale" AccentColor="Color.Primary" />
     </MudItem>
     <MudItem xs="12" sm="6" md="3">
-        <MudPaper Class="pa-4" Elevation="1">
-            <MudText Typo="Typo.subtitle2" Color="Color.Secondary">Low Stock Alerts</MudText>
-            <MudText Typo="Typo.h5">—</MudText>
-        </MudPaper>
+        <KpiCard Title="Low Stock Alerts" Value="—" Icon="@Icons.Material.Filled.WarningAmber" AccentColor="Color.Warning" />
     </MudItem>
     <MudItem xs="12" sm="6" md="3">
-        <MudPaper Class="pa-4" Elevation="1">
-            <MudText Typo="Typo.subtitle2" Color="Color.Secondary">Open Cash Registers</MudText>
-            <MudText Typo="Typo.h5">—</MudText>
-        </MudPaper>
+        <KpiCard Title="Open Cash Registers" Value="—" Icon="@Icons.Material.Filled.Storefront" AccentColor="Color.Info" />
     </MudItem>
     <MudItem xs="12" sm="6" md="3">
-        <MudPaper Class="pa-4" Elevation="1">
-            <MudText Typo="Typo.subtitle2" Color="Color.Secondary">Pending Purchase Orders</MudText>
-            <MudText Typo="Typo.h5">—</MudText>
-        </MudPaper>
+        <KpiCard Title="Pending Purchase Orders" Value="—" Icon="@Icons.Material.Filled.LocalShipping" AccentColor="Color.Secondary" />
     </MudItem>
 </MudGrid>
 
-<MudAlert Severity="Severity.Info" Class="mt-6">
+<MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Class="mt-6" Icon="@Icons.Material.Filled.Construction">
     This is the Phase 0 foundations shell — role-specific dashboard widgets (sales trend, top SKUs,
     reorder alerts) are built out starting with the Catalog/Inventory/Sales modules per the roadmap.
 </MudAlert>

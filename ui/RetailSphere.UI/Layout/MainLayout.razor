@@ -19,8 +19,8 @@
         <Sidebar @ref="_sidebarRef" @bind-IsPinned="_sidebarPinned" @bind-IsPinned:after="OnSidebarPinnedChanged" />
     </MudDrawer>
 
-    <MudMainContent Style="padding-top: 16px;">
-        <MudContainer MaxWidth="MaxWidth.False" Class="pa-4">
+    <MudMainContent Class="rs-main-content">
+        <MudContainer MaxWidth="MaxWidth.False" Class="pa-6">
             @Body
         </MudContainer>
     </MudMainContent>
@@ -32,29 +32,61 @@
     private bool _sidebarPinned;
     private bool _isDarkMode;
 
-    // Mirrors the theme structure used in the existing WMC Platform.UI MainLayout —
-    // same LayoutProperties/Palette/Typography shape, RetailSphere-specific palette.
+    // Full branded palette — the previous version only set Primary/AppbarBackground/
+    // TextPrimary, which is why the app rendered essentially colorless (MudBlazor
+    // falls back to its own generic defaults for everything left unset, including
+    // Background/Surface/DrawerBackground, so nothing actually looked "branded").
     private readonly MudTheme _theme = new()
     {
         LayoutProperties = new LayoutProperties
         {
             DrawerWidthLeft = "260px",
             DrawerMiniWidthLeft = "64px",
+            DefaultBorderRadius = "8px",
         },
         PaletteLight = new PaletteLight
         {
-            Primary = new MudColor("#1B4D3E"),
-            AppbarBackground = new MudColor("#F4F6F5"),
-            TextPrimary = new MudColor("#0F172A"),
+            Primary = new MudColor("#0F6E5B"),
+            PrimaryContrastText = new MudColor("#FFFFFF"),
+            Secondary = new MudColor("#F59E0B"),
+            SecondaryContrastText = new MudColor("#1F2937"),
+            Background = new MudColor("#F3F4F6"),
+            Surface = new MudColor("#FFFFFF"),
+            AppbarBackground = new MudColor("#0F6E5B"),
+            AppbarText = new MudColor("#FFFFFF"),
+            DrawerBackground = new MudColor("#FFFFFF"),
+            DrawerText = new MudColor("#1F2937"),
+            DrawerIcon = new MudColor("#4B5563"),
+            TextPrimary = new MudColor("#111827"),
+            TextSecondary = new MudColor("#6B7280"),
+            Success = new MudColor("#16A34A"),
+            Warning = new MudColor("#F59E0B"),
+            Error = new MudColor("#DC2626"),
+            Info = new MudColor("#0284C7"),
+            LinesDefault = new MudColor("#E5E7EB"),
+            TableLines = new MudColor("#E5E7EB"),
         },
         PaletteDark = new PaletteDark
         {
-            Primary = new MudColor("#3FA98A"),
+            Primary = new MudColor("#34D399"),
+            PrimaryContrastText = new MudColor("#0B1120"),
+            Secondary = new MudColor("#FBBF24"),
+            Background = new MudColor("#0F172A"),
+            Surface = new MudColor("#1E293B"),
             AppbarBackground = new MudColor("#111827"),
+            AppbarText = new MudColor("#F1F5F9"),
+            DrawerBackground = new MudColor("#111827"),
+            DrawerText = new MudColor("#E2E8F0"),
+            DrawerIcon = new MudColor("#94A3B8"),
+            TextPrimary = new MudColor("#F1F5F9"),
+            TextSecondary = new MudColor("#94A3B8"),
         },
         Typography = new Typography
         {
             Default = new DefaultTypography { FontFamily = ["Inter", "sans-serif"] },
+            H4 = new H4Typography { FontWeight = "700" },
+            H5 = new H5Typography { FontWeight = "700" },
+            H6 = new H6Typography { FontWeight = "600" },
         },
         ZIndex = new ZIndex { Popover = 1502, Snackbar = 1510 },
     };
