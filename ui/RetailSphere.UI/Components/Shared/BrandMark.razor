@@ -1,0 +1,23 @@
+@* Reusable brand mark — a gradient rounded-square badge with a storefront glyph.
+   Used on the login screen and the sidebar so the same identity shows up everywhere. *@
+
+<svg width="@Size" height="@Size" viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg" style="flex-shrink: 0;">
+    <defs>
+        <linearGradient id="@_gradientId" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stop-color="#14B8A6" />
+            <stop offset="100%" stop-color="#0F6E5B" />
+        </linearGradient>
+    </defs>
+    <rect width="40" height="40" rx="10" fill="url(#@_gradientId)" />
+    <path d="M11 15.5L12.4 10H27.6L29 15.5" stroke="white" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" fill="none" />
+    <path d="M10 15.5H30V27C30 28.1046 29.1046 29 28 29H12C10.8954 29 10 28.1046 10 27V15.5Z" stroke="white" stroke-width="1.8" stroke-linejoin="round" fill="none" />
+    <path d="M15.5 19V15.5" stroke="white" stroke-width="1.8" stroke-linecap="round" />
+    <path d="M24.5 19V15.5" stroke="white" stroke-width="1.8" stroke-linecap="round" />
+    <path d="M15.5 19C15.5 21.4853 17.5147 23.5 20 23.5C22.4853 23.5 24.5 21.4853 24.5 19" stroke="white" stroke-width="1.8" stroke-linecap="round" fill="none" />
+</svg>
+
+@code {
+    [Parameter] public int Size { get; set; } = 40;
+
+    private readonly string _gradientId = $"rsGrad{Guid.NewGuid():N}";
+}

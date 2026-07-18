@@ -1,12 +1,18 @@
 @page "/"
 @attribute [Authorize]
+@inject AuthenticationStateProvider AuthStateProvider
 
 <PageTitle>Dashboard - RetailSphere</PageTitle>
 
-<MudText Typo="Typo.h4" Class="mb-1">Dashboard</MudText>
-<MudText Typo="Typo.body2" Class="mb-6" Style="color: var(--mud-palette-text-secondary);">
-    Overview across all branches
-</MudText>
+<div class="rs-hero mb-6">
+    <div class="rs-hero-content">
+        <MudText Typo="Typo.h4" Style="color: white; font-weight: 700;">@_greeting, @_firstNamePart</MudText>
+        <MudText Typo="Typo.body1" Style="color: rgba(255,255,255,0.85);" Class="mt-1">
+            Here's what's happening across your branches today, @_today.
+        </MudText>
+    </div>
+    <MudIcon Icon="@Icons.Material.Filled.Insights" Style="color: rgba(255,255,255,0.25); font-size: 96px;" />
+</div>
 
 <MudGrid>
     <MudItem xs="12" sm="6" md="3">
@@ -27,3 +33,30 @@
     This is the Phase 0 foundations shell — role-specific dashboard widgets (sales trend, top SKUs,
     reorder alerts) are built out starting with the Catalog/Inventory/Sales modules per the roadmap.
 </MudAlert>
+
+@code {
+    private string _greeting = "Welcome";
+    private string _firstNamePart = "";
+    private string _today = DateTime.Now.ToString("dddd, MMMM d");
+
+    protected override async Task OnInitializedAsync()
+    {
+        var state = await AuthStateProvider.GetAuthenticationStateAsync();
+        var email = state.User.FindFirst("email")?.Value ?? string.Empty;
+        _firstNamePart = email.Contains('@') ? email[..email.IndexOf('@')] : "there";
+
+        var hour = DateTime.Now.Hour;
+        if (hour < 12)
+        {
+            _greeting = "Good morning";
+        }
+        else if (hour < 17)
+        {
+            _greeting = "Good afternoon";
+        }
+        else
+        {
+            _greeting = "Good evening";
+        }
+    }
+}

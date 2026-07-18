@@ -1,68 +1,82 @@
 @inject AuthenticationStateProvider AuthStateProvider
 
-<MudPaper Class="py-3 pa-3" Elevation="0">
-    <MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-4" Justify="Justify.SpaceBetween">
-        <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
-            <MudIcon Icon="@Icons.Material.Filled.Storefront" Size="Size.Large" Color="Color.Primary" />
-            <MudText Typo="Typo.h6"><strong>Retail</strong>Sphere</MudText>
+<div class="rs-sidebar">
+    <div class="rs-sidebar-header">
+        <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween">
+            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+                <BrandMark Size="34" />
+                <MudText Typo="Typo.h6"><strong>Retail</strong>Sphere</MudText>
+            </MudStack>
+            <MudIconButton Icon="@(IsPinned ? Icons.Material.Filled.PushPin : Icons.Material.Outlined.PushPin)"
+                           Size="Size.Small"
+                           Title="@(IsPinned ? "Unpin sidebar" : "Pin sidebar")"
+                           OnClick="TogglePinAsync" />
         </MudStack>
-        <MudIconButton Icon="@(IsPinned ? Icons.Material.Filled.PushPin : Icons.Material.Outlined.PushPin)"
-                       Size="Size.Small"
-                       Title="@(IsPinned ? "Unpin sidebar" : "Pin sidebar")"
-                       OnClick="TogglePinAsync" />
-    </MudStack>
 
-    <MudTextField @bind-Value="_searchString" DebounceInterval="200" Placeholder="Search" Adornment="Adornment.Start"
-                  Variant="Variant.Outlined" AdornmentIcon="@Icons.Material.Filled.Search" IconSize="Size.Medium"
-                  Class="mb-4 menu-quick-search" />
+        <MudTextField @bind-Value="_searchString" DebounceInterval="200" Placeholder="Search" Adornment="Adornment.Start"
+                      Variant="Variant.Outlined" AdornmentIcon="@Icons.Material.Filled.Search" IconSize="Size.Medium"
+                      Class="mt-4 menu-quick-search" Margin="Margin.Dense" />
+    </div>
 
-    <MudNavMenu>
-        <MudNavLink Href="" Match="NavLinkMatch.All" Icon="@Icons.Material.Filled.Dashboard" hidden="@(!IsVisible("Dashboard"))">Dashboard</MudNavLink>
+    <div class="rs-sidebar-nav">
+        <MudNavMenu>
+            <MudNavLink Href="" Match="NavLinkMatch.All" Icon="@Icons.Material.Filled.Dashboard" hidden="@(!IsVisible("Dashboard"))">Dashboard</MudNavLink>
 
-        <MudNavGroup Title="Administration" Icon="@Icons.Material.Filled.AdminPanelSettings" @ref="_adminGroup"
-                     hidden="@(!IsVisible("Administration", "Users", "Roles", "Branches", "Audit Logs"))">
-            <MudNavLink Href="admin/users" Icon="@Icons.Material.Filled.People" hidden="@(!HasPermission("admin.users.view") || !IsVisible("Users"))">Users</MudNavLink>
-            <MudNavLink Href="admin/roles" Icon="@Icons.Material.Filled.Security" hidden="@(!HasPermission("admin.roles.view") || !IsVisible("Roles"))">Roles &amp; Permissions</MudNavLink>
-            <MudNavLink Href="admin/branches" Icon="@Icons.Material.Filled.Store" hidden="@(!HasPermission("admin.branches.view") || !IsVisible("Branches"))">Branches</MudNavLink>
-            <MudNavLink Href="admin/audit-logs" Icon="@Icons.Material.Filled.History" hidden="@(!HasPermission("admin.audit.view") || !IsVisible("Audit Logs"))">Audit Logs</MudNavLink>
-        </MudNavGroup>
+            <MudNavGroup Title="Administration" Icon="@Icons.Material.Filled.AdminPanelSettings" @ref="_adminGroup"
+                         hidden="@(!IsVisible("Administration", "Users", "Roles", "Branches", "Audit Logs"))">
+                <MudNavLink Href="admin/users" Icon="@Icons.Material.Filled.People" hidden="@(!HasPermission("admin.users.view") || !IsVisible("Users"))">Users</MudNavLink>
+                <MudNavLink Href="admin/roles" Icon="@Icons.Material.Filled.Security" hidden="@(!HasPermission("admin.roles.view") || !IsVisible("Roles"))">Roles &amp; Permissions</MudNavLink>
+                <MudNavLink Href="admin/branches" Icon="@Icons.Material.Filled.Store" hidden="@(!HasPermission("admin.branches.view") || !IsVisible("Branches"))">Branches</MudNavLink>
+                <MudNavLink Href="admin/audit-logs" Icon="@Icons.Material.Filled.History" hidden="@(!HasPermission("admin.audit.view") || !IsVisible("Audit Logs"))">Audit Logs</MudNavLink>
+            </MudNavGroup>
 
-        <MudNavGroup Title="Catalog" Icon="@Icons.Material.Filled.Category" @ref="_catalogGroup"
-                     hidden="@(!IsVisible("Catalog", "Products", "Categories", "Brands"))">
-            <MudNavLink Href="catalog/products" Icon="@Icons.Material.Filled.Checkroom" hidden="@(!HasPermission("catalog.products.view") || !IsVisible("Products"))">Products</MudNavLink>
-            <MudNavLink Href="catalog/categories" Icon="@Icons.Material.Filled.Category" hidden="@(!HasPermission("catalog.categories.view") || !IsVisible("Categories"))">Categories</MudNavLink>
-            <MudNavLink Href="catalog/brands" Icon="@Icons.Material.Filled.BrandingWatermark" hidden="@(!HasPermission("catalog.brands.view") || !IsVisible("Brands"))">Brands</MudNavLink>
-        </MudNavGroup>
+            <MudNavGroup Title="Catalog" Icon="@Icons.Material.Filled.Category" @ref="_catalogGroup"
+                         hidden="@(!IsVisible("Catalog", "Products", "Categories", "Brands"))">
+                <MudNavLink Href="catalog/products" Icon="@Icons.Material.Filled.Checkroom" hidden="@(!HasPermission("catalog.products.view") || !IsVisible("Products"))">Products</MudNavLink>
+                <MudNavLink Href="catalog/categories" Icon="@Icons.Material.Filled.Category" hidden="@(!HasPermission("catalog.categories.view") || !IsVisible("Categories"))">Categories</MudNavLink>
+                <MudNavLink Href="catalog/brands" Icon="@Icons.Material.Filled.BrandingWatermark" hidden="@(!HasPermission("catalog.brands.view") || !IsVisible("Brands"))">Brands</MudNavLink>
+            </MudNavGroup>
 
-        <MudNavGroup Title="Inventory" Icon="@Icons.Material.Filled.Inventory" @ref="_inventoryGroup"
-                     hidden="@(!IsVisible("Inventory", "Stock", "Transfers", "Adjustments"))">
-            <MudNavLink Href="inventory/stock" Icon="@Icons.Material.Filled.Inventory2" hidden="@(!HasPermission("inventory.stock.view") || !IsVisible("Stock"))">Branch Stock</MudNavLink>
-            <MudNavLink Href="inventory/transfers" Icon="@Icons.Material.Filled.SwapHoriz" hidden="@(!HasPermission("inventory.transfer.view") || !IsVisible("Transfers"))">Transfers</MudNavLink>
-            <MudNavLink Href="inventory/adjustments" Icon="@Icons.Material.Filled.Tune" hidden="@(!HasPermission("inventory.adjustment.view") || !IsVisible("Adjustments"))">Adjustments</MudNavLink>
-        </MudNavGroup>
+            <MudNavGroup Title="Inventory" Icon="@Icons.Material.Filled.Inventory" @ref="_inventoryGroup"
+                         hidden="@(!IsVisible("Inventory", "Stock", "Transfers", "Adjustments"))">
+                <MudNavLink Href="inventory/stock" Icon="@Icons.Material.Filled.Inventory2" hidden="@(!HasPermission("inventory.stock.view") || !IsVisible("Stock"))">Branch Stock</MudNavLink>
+                <MudNavLink Href="inventory/transfers" Icon="@Icons.Material.Filled.SwapHoriz" hidden="@(!HasPermission("inventory.transfer.view") || !IsVisible("Transfers"))">Transfers</MudNavLink>
+                <MudNavLink Href="inventory/adjustments" Icon="@Icons.Material.Filled.Tune" hidden="@(!HasPermission("inventory.adjustment.view") || !IsVisible("Adjustments"))">Adjustments</MudNavLink>
+            </MudNavGroup>
 
-        <MudNavGroup Title="Purchasing" Icon="@Icons.Material.Filled.LocalShipping" @ref="_purchasingGroup"
-                     hidden="@(!IsVisible("Purchasing", "Suppliers", "Purchase Orders"))">
-            <MudNavLink Href="purchasing/suppliers" Icon="@Icons.Material.Filled.Business" hidden="@(!HasPermission("purchasing.suppliers.view") || !IsVisible("Suppliers"))">Suppliers</MudNavLink>
-            <MudNavLink Href="purchasing/orders" Icon="@Icons.Material.Filled.ReceiptLong" hidden="@(!HasPermission("purchasing.orders.view") || !IsVisible("Purchase Orders"))">Purchase Orders</MudNavLink>
-        </MudNavGroup>
+            <MudNavGroup Title="Purchasing" Icon="@Icons.Material.Filled.LocalShipping" @ref="_purchasingGroup"
+                         hidden="@(!IsVisible("Purchasing", "Suppliers", "Purchase Orders"))">
+                <MudNavLink Href="purchasing/suppliers" Icon="@Icons.Material.Filled.Business" hidden="@(!HasPermission("purchasing.suppliers.view") || !IsVisible("Suppliers"))">Suppliers</MudNavLink>
+                <MudNavLink Href="purchasing/orders" Icon="@Icons.Material.Filled.ReceiptLong" hidden="@(!HasPermission("purchasing.orders.view") || !IsVisible("Purchase Orders"))">Purchase Orders</MudNavLink>
+            </MudNavGroup>
 
-        <MudNavGroup Title="Sales" Icon="@Icons.Material.Filled.PointOfSale" @ref="_salesGroup"
-                     hidden="@(!IsVisible("Sales", "POS", "Orders", "Returns"))">
-            <MudNavLink Href="sales/pos" Icon="@Icons.Material.Filled.ShoppingCart" hidden="@(!HasPermission("sales.pos.create") || !IsVisible("POS"))">Point of Sale</MudNavLink>
-            <MudNavLink Href="sales/orders" Icon="@Icons.Material.Filled.Receipt" hidden="@(!HasPermission("sales.orders.view") || !IsVisible("Orders"))">Sales Orders</MudNavLink>
-            <MudNavLink Href="sales/returns" Icon="@Icons.Material.Filled.AssignmentReturn" hidden="@(!HasPermission("sales.returns.view") || !IsVisible("Returns"))">Returns &amp; Exchanges</MudNavLink>
-        </MudNavGroup>
+            <MudNavGroup Title="Sales" Icon="@Icons.Material.Filled.PointOfSale" @ref="_salesGroup"
+                         hidden="@(!IsVisible("Sales", "POS", "Orders", "Returns"))">
+                <MudNavLink Href="sales/pos" Icon="@Icons.Material.Filled.ShoppingCart" hidden="@(!HasPermission("sales.pos.create") || !IsVisible("POS"))">Point of Sale</MudNavLink>
+                <MudNavLink Href="sales/orders" Icon="@Icons.Material.Filled.Receipt" hidden="@(!HasPermission("sales.orders.view") || !IsVisible("Orders"))">Sales Orders</MudNavLink>
+                <MudNavLink Href="sales/returns" Icon="@Icons.Material.Filled.AssignmentReturn" hidden="@(!HasPermission("sales.returns.view") || !IsVisible("Returns"))">Returns &amp; Exchanges</MudNavLink>
+            </MudNavGroup>
 
-        <MudNavLink Href="customers" Icon="@Icons.Material.Filled.Groups" hidden="@(!HasPermission("customers.view") || !IsVisible("Customers"))">Customers</MudNavLink>
+            <MudNavLink Href="customers" Icon="@Icons.Material.Filled.Groups" hidden="@(!HasPermission("customers.view") || !IsVisible("Customers"))">Customers</MudNavLink>
 
-        <MudNavGroup Title="Finance" Icon="@Icons.Material.Filled.AccountBalance" @ref="_financeGroup"
-                     hidden="@(!IsVisible("Finance", "Cash Register", "Reports"))">
-            <MudNavLink Href="finance/cash-register" Icon="@Icons.Material.Filled.PointOfSale" hidden="@(!HasPermission("finance.cashregister.view") || !IsVisible("Cash Register"))">Cash Register</MudNavLink>
-            <MudNavLink Href="reporting/dashboard" Icon="@Icons.Material.Filled.BarChart" hidden="@(!HasPermission("reporting.view") || !IsVisible("Reports"))">Reports</MudNavLink>
-        </MudNavGroup>
-    </MudNavMenu>
-</MudPaper>
+            <MudNavGroup Title="Finance" Icon="@Icons.Material.Filled.AccountBalance" @ref="_financeGroup"
+                         hidden="@(!IsVisible("Finance", "Cash Register", "Reports"))">
+                <MudNavLink Href="finance/cash-register" Icon="@Icons.Material.Filled.PointOfSale" hidden="@(!HasPermission("finance.cashregister.view") || !IsVisible("Cash Register"))">Cash Register</MudNavLink>
+                <MudNavLink Href="reporting/dashboard" Icon="@Icons.Material.Filled.BarChart" hidden="@(!HasPermission("reporting.view") || !IsVisible("Reports"))">Reports</MudNavLink>
+            </MudNavGroup>
+        </MudNavMenu>
+    </div>
+
+    <div class="rs-sidebar-footer">
+        <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="3">
+            <MudAvatar Color="Color.Primary" Variant="Variant.Filled" Size="Size.Small">@_initials</MudAvatar>
+            <MudStack Spacing="0" Style="overflow: hidden;">
+                <MudText Typo="Typo.body2" Style="font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">@_email</MudText>
+                <MudText Typo="Typo.caption" Style="color: var(--mud-palette-text-secondary);">@_roleSummary</MudText>
+            </MudStack>
+        </MudStack>
+    </div>
+</div>
 
 @code {
     [Parameter] public bool IsPinned { get; set; }
@@ -70,6 +84,9 @@
 
     private string? _searchString;
     private HashSet<string> _permissions = [];
+    private string _email = string.Empty;
+    private string _initials = "?";
+    private string _roleSummary = "Signed in";
 
     private MudNavGroup? _adminGroup;
     private MudNavGroup? _catalogGroup;
@@ -82,6 +99,12 @@
     {
         var state = await AuthStateProvider.GetAuthenticationStateAsync();
         _permissions = state.User.FindAll("permission").Select(c => c.Value).ToHashSet();
+
+        _email = state.User.FindFirst("email")?.Value ?? string.Empty;
+        _initials = string.IsNullOrEmpty(_email) ? "?" : _email[..1].ToUpperInvariant();
+
+        var roles = state.User.FindAll(System.Security.Claims.ClaimTypes.Role).Select(c => c.Value).ToList();
+        _roleSummary = roles.Count > 0 ? string.Join(", ", roles) : "Signed in";
     }
 
     private bool HasPermission(string code) => _permissions.Contains(code);

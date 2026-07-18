@@ -3,17 +3,36 @@
 @inject AuthenticationStateProvider AuthStateProvider
 @inject JwtAuthenticationStateProvider JwtAuthStateProvider
 
-<MudAppBar Elevation="1">
+<MudAppBar Elevation="0" Class="rs-appbar">
     <MudIconButton Icon="@Icons.Material.Filled.Menu" Color="Color.Inherit" OnClick="@(() => OnToggleDrawer.InvokeAsync())" />
-    <MudText Typo="Typo.h6" Class="ml-2"><strong>Retail</strong>Sphere</MudText>
+
+    <MudText Typo="Typo.subtitle1" Class="ml-3" Style="opacity: 0.95;">
+        @_greeting
+    </MudText>
+
     <MudSpacer />
-    <MudIconButton Icon="@(IsDarkMode ? Icons.Material.Filled.LightMode : Icons.Material.Filled.DarkMode)"
-                   Color="Color.Inherit"
-                   OnClick="@(() => OnToggleTheme.InvokeAsync())" />
-    <MudMenu Icon="@Icons.Material.Filled.AccountCircle" Color="Color.Inherit" AnchorOrigin="Origin.BottomRight" TransformOrigin="Origin.TopRight">
-        <MudMenuItem Disabled="true">@_displayName</MudMenuItem>
-        <MudDivider />
-        <MudMenuItem OnClick="LogoutAsync">Log out</MudMenuItem>
+
+    <MudTooltip Text="Notifications">
+        <MudIconButton Icon="@Icons.Material.Filled.NotificationsNone" Color="Color.Inherit" />
+    </MudTooltip>
+
+    <MudTooltip Text="@(IsDarkMode ? "Switch to light mode" : "Switch to dark mode")">
+        <MudIconButton Icon="@(IsDarkMode ? Icons.Material.Filled.LightMode : Icons.Material.Filled.DarkMode)"
+                       Color="Color.Inherit"
+                       OnClick="@(() => OnToggleTheme.InvokeAsync())" />
+    </MudTooltip>
+
+    <MudMenu AnchorOrigin="Origin.BottomRight" TransformOrigin="Origin.TopRight" Class="ml-2">
+        <ActivatorContent>
+            <MudAvatar Color="Color.Secondary" Variant="Variant.Filled" Size="Size.Small" Style="cursor: pointer;">
+                @_initials
+            </MudAvatar>
+        </ActivatorContent>
+        <ChildContent>
+            <MudMenuItem Disabled="true">@_displayName</MudMenuItem>
+            <MudDivider />
+            <MudMenuItem OnClick="LogoutAsync" Icon="@Icons.Material.Filled.Logout">Log out</MudMenuItem>
+        </ChildContent>
     </MudMenu>
 </MudAppBar>
 
@@ -23,6 +42,8 @@
     [Parameter] public bool IsDarkMode { get; set; }
 
     private string _displayName = "Account";
+    private string _initials = "?";
+    private string _greeting = "Welcome";
 
     protected override async Task OnInitializedAsync()
     {
@@ -30,6 +51,24 @@
         _displayName = state.User.FindFirst(ClaimTypes.Email)?.Value
             ?? state.User.FindFirst("email")?.Value
             ?? "Account";
+
+        _initials = _displayName == "Account" ? "?" : _displayName[..1].ToUpperInvariant();
+
+        var hour = DateTime.Now.Hour;
+        string timeOfDay;
+        if (hour < 12)
+        {
+            timeOfDay = "morning";
+        }
+        else if (hour < 17)
+        {
+            timeOfDay = "afternoon";
+        }
+        else
+        {
+            timeOfDay = "evening";
+        }
+        _greeting = $"Good {timeOfDay}";
     }
 
     private async Task LogoutAsync()

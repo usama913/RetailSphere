@@ -4,28 +4,78 @@
 @inject JwtAuthenticationStateProvider AuthStateProvider
 @inject NavigationManager NavigationManager
 
-<MudContainer MaxWidth="MaxWidth.Small" Class="d-flex flex-column align-center justify-center" Style="height: 100vh;">
-    <MudPaper Class="pa-8" Width="400px" Elevation="4">
-        <MudText Typo="Typo.h5" Class="mb-1"><strong>Retail</strong>Sphere</MudText>
-        <MudText Typo="Typo.body2" Class="mb-6" Color="Color.Secondary">Sign in to your account</MudText>
+<div class="rs-login-shell">
+    <div class="rs-login-brand-panel">
+        <div class="rs-login-brand-content">
+            <div class="d-flex align-center mb-8" style="gap: 12px;">
+                <BrandMark Size="48" />
+                <MudText Typo="Typo.h5" Style="color: white;"><strong>Retail</strong>Sphere</MudText>
+            </div>
 
-        <MudTextField T="string" Label="Email" @bind-Value="_email" Variant="Variant.Outlined" Class="mb-4"
-                      InputType="InputType.Email" Immediate="true" />
-        <MudTextField T="string" Label="Password" @bind-Value="_password" Variant="Variant.Outlined" Class="mb-2"
-                      InputType="InputType.Password" Immediate="true"
-                      OnKeyUp="@(async e => { if (e.Key == "Enter") await SubmitAsync(); })" />
+            <MudText Typo="Typo.h4" Style="color: white; font-weight: 700; line-height: 1.3;" Class="mb-4">
+                Run every branch from one screen.
+            </MudText>
+            <MudText Typo="Typo.body1" Style="color: rgba(255,255,255,0.85);" Class="mb-8">
+                Catalog, inventory, POS, purchasing, and finance for your shoes, watches,
+                clothing, and accessories business — all in one enterprise platform.
+            </MudText>
 
-        @if (!string.IsNullOrWhiteSpace(_errorMessage))
-        {
-            <MudAlert Severity="Severity.Error" Class="mb-4" Dense="true">@_errorMessage</MudAlert>
-        }
+            <MudStack Spacing="4">
+                <div class="d-flex align-center" style="gap: 12px;">
+                    <MudIcon Icon="@Icons.Material.Filled.Inventory2" Style="color: white;" />
+                    <MudText Style="color: white;">Multi-branch inventory, always in sync</MudText>
+                </div>
+                <div class="d-flex align-center" style="gap: 12px;">
+                    <MudIcon Icon="@Icons.Material.Filled.PointOfSale" Style="color: white;" />
+                    <MudText Style="color: white;">POS that works online and offline</MudText>
+                </div>
+                <div class="d-flex align-center" style="gap: 12px;">
+                    <MudIcon Icon="@Icons.Material.Filled.InsertChartOutlined" Style="color: white;" />
+                    <MudText Style="color: white;">Real-time sales &amp; financial reporting</MudText>
+                </div>
+            </MudStack>
+        </div>
 
-        <MudButton Variant="Variant.Filled" Color="Color.Primary" FullWidth="true" Class="mt-2"
-                   Disabled="_isSubmitting" OnClick="SubmitAsync">
-            @(_isSubmitting ? "Signing in..." : "Sign in")
-        </MudButton>
-    </MudPaper>
-</MudContainer>
+        <div class="rs-login-brand-blob rs-login-brand-blob--1"></div>
+        <div class="rs-login-brand-blob rs-login-brand-blob--2"></div>
+    </div>
+
+    <div class="rs-login-form-panel">
+        <div class="rs-login-form-card">
+            <div class="hide-on-desktop mb-2" style="align-items: center; gap: 10px;">
+                <BrandMark Size="36" />
+                <MudText Typo="Typo.h6"><strong>Retail</strong>Sphere</MudText>
+            </div>
+
+            <MudText Typo="Typo.h5" Class="mb-1" Style="font-weight: 700;">Welcome back</MudText>
+            <MudText Typo="Typo.body2" Class="mb-6" Style="color: var(--mud-palette-text-secondary);">
+                Sign in to continue to your dashboard
+            </MudText>
+
+            <MudTextField T="string" Label="Email" @bind-Value="_email" Variant="Variant.Outlined" Class="mb-4"
+                          InputType="InputType.Email" Immediate="true"
+                          Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.MailOutline" />
+            <MudTextField T="string" Label="Password" @bind-Value="_password" Variant="Variant.Outlined" Class="mb-2"
+                          InputType="InputType.Password" Immediate="true"
+                          Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.MailOutline"
+                          OnKeyUp="@(async e => { if (e.Key == "Enter") await SubmitAsync(); })" />
+
+            @if (!string.IsNullOrWhiteSpace(_errorMessage))
+            {
+                <MudAlert Severity="Severity.Error" Class="mb-4" Dense="true">@_errorMessage</MudAlert>
+            }
+
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" FullWidth="true" Class="mt-2 rs-login-btn"
+                       Size="Size.Large" Disabled="_isSubmitting" OnClick="SubmitAsync">
+                @(_isSubmitting ? "Signing in..." : "Sign in")
+            </MudButton>
+
+            <MudText Typo="Typo.caption" Class="mt-6 d-block text-center" Style="color: var(--mud-palette-text-secondary);">
+                RetailSphere &middot; Enterprise Retail Management
+            </MudText>
+        </div>
+    </div>
+</div>
 
 @code {
     private string _email = string.Empty;
