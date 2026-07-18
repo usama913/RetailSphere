@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using RetailSphere.Application.Common.Interfaces;
 using RetailSphere.Domain.Auditing;
 using RetailSphere.Domain.Catalog;
+using RetailSphere.Domain.Customers;
 using RetailSphere.Domain.IdentityAccess;
 using RetailSphere.Domain.Inventory;
 using RetailSphere.Domain.Organization;
@@ -42,6 +43,8 @@ public sealed class RetailSphereDbContext(DbContextOptions<RetailSphereDbContext
     public DbSet<StockItem> StockItems => Set<StockItem>();
 
     public DbSet<StockTransfer> StockTransfers => Set<StockTransfer>();
+
+    public DbSet<Customer> Customers => Set<Customer>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

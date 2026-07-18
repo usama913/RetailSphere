@@ -1,0 +1,264 @@
+@page "/customers"
+@using RetailSphere.Contracts.Customers
+@attribute [Authorize]
+@inject IApiClient ApiClient
+@inject AuthenticationStateProvider AuthStateProvider
+@inject ISnackbar Snackbar
+
+<PageTitle>Customers - RetailSphere</PageTitle>
+
+@if (!_canView)
+{
+    <MudAlert Severity="Severity.Warning">You don't have permission to view customers.</MudAlert>
+}
+else
+{
+
+<MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween" Class="mb-4">
+    <div>
+        <MudText Typo="Typo.h5">Customers</MudText>
+        <MudText Typo="Typo.body2" Style="color: var(--mud-palette-text-secondary);">People and businesses who buy from you.</MudText>
+    </div>
+    @if (_canEdit)
+    {
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" OnClick="ShowCreateForm">
+            New Customer
+        </MudButton>
+    }
+</MudStack>
+
+<MudGrid Class="mb-4">
+    <MudItem xs="12" sm="6" md="4">
+        <MudTextField T="string" Value="@_search" ValueChanged="OnSearchChanged" Label="Search by name, phone, or email"
+                      Variant="Variant.Outlined" Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search"
+                      Immediate="true" DebounceInterval="200" />
+    </MudItem>
+</MudGrid>
+
+@if (_showForm)
+{
+    <MudPaper Class="pa-4 mb-4" Elevation="1">
+        <MudText Typo="Typo.h6" Class="mb-3">@(_editingId is null ? "New Customer" : "Edit Customer")</MudText>
+        <MudGrid>
+            <MudItem xs="12" sm="6">
+                <MudTextField @bind-Value="_formName" Label="Name" Variant="Variant.Outlined" Required="true" />
+            </MudItem>
+            <MudItem xs="12" sm="6">
+                <MudTextField @bind-Value="_formPhone" Label="Phone" Variant="Variant.Outlined" />
+            </MudItem>
+            <MudItem xs="12" sm="6">
+                <MudTextField @bind-Value="_formEmail" Label="Email" Variant="Variant.Outlined" />
+            </MudItem>
+            <MudItem xs="12" sm="6">
+                <MudTextField @bind-Value="_formAddress" Label="Address" Variant="Variant.Outlined" />
+            </MudItem>
+        </MudGrid>
+        <MudStack Row="true" Class="mt-4" Spacing="2">
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="SaveAsync" Disabled="@_isSaving">Save</MudButton>
+            <MudButton Variant="Variant.Text" OnClick="CancelForm">Cancel</MudButton>
+        </MudStack>
+    </MudPaper>
+}
+
+<MudTable Items="@FilteredCustomers" Hover="true" Dense="true" Loading="@_isLoading">
+    <HeaderContent>
+        <MudTh>Name</MudTh>
+        <MudTh>Phone</MudTh>
+        <MudTh>Email</MudTh>
+        <MudTh>Address</MudTh>
+        <MudTh>Status</MudTh>
+        <MudTh>Actions</MudTh>
+    </HeaderContent>
+    <RowTemplate>
+        <MudTd DataLabel="Name">@context.Name</MudTd>
+        <MudTd DataLabel="Phone">@(context.Phone ?? "—")</MudTd>
+        <MudTd DataLabel="Email">@(context.Email ?? "—")</MudTd>
+        <MudTd DataLabel="Address">@(context.Address ?? "—")</MudTd>
+        <MudTd DataLabel="Status">
+            <MudChip T="string" Size="Size.Small" Color="@(context.IsActive ? Color.Success : Color.Default)">
+                @(context.IsActive ? "Active" : "Inactive")
+            </MudChip>
+        </MudTd>
+        <MudTd DataLabel="Actions">
+            @if (_canEdit)
+            {
+                <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small" OnClick="@(() => ShowEditForm(context))" />
+                @if (context.IsActive)
+                {
+                    <MudIconButton Icon="@Icons.Material.Filled.PauseCircle" Size="Size.Small" OnClick="@(() => DeactivateAsync(context.Id))" />
+                }
+                else
+                {
+                    <MudIconButton Icon="@Icons.Material.Filled.PlayCircle" Size="Size.Small" OnClick="@(() => ActivateAsync(context.Id))" />
+                }
+                <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" OnClick="@(() => DeleteAsync(context.Id))" />
+            }
+        </MudTd>
+    </RowTemplate>
+</MudTable>
+
+}
+
+@code {
+    private IReadOnlyList<CustomerDto> _customers = [];
+    private HashSet<string> _permissions = [];
+
+    private bool _isLoading = true;
+    private bool _isSaving;
+    private bool _showForm;
+    private long? _editingId;
+    private string _search = string.Empty;
+
+    private string _formName = string.Empty;
+    private string? _formPhone;
+    private string? _formEmail;
+    private string? _formAddress;
+
+    private bool _canView => _permissions.Contains("customers.view");
+    private bool _canEdit => _permissions.Contains("customers.edit");
+
+    private IReadOnlyList<CustomerDto> FilteredCustomers =>
+        string.IsNullOrWhiteSpace(_search)
+            ? _customers
+            : _customers.Where(c =>
+                c.Name.Contains(_search, StringComparison.InvariantCultureIgnoreCase)
+                || (c.Phone?.Contains(_search, StringComparison.InvariantCultureIgnoreCase) ?? false)
+                || (c.Email?.Contains(_search, StringComparison.InvariantCultureIgnoreCase) ?? false))
+              .ToList();
+
+    protected override async Task OnInitializedAsync()
+    {
+        var state = await AuthStateProvider.GetAuthenticationStateAsync();
+        _permissions = state.User.FindAll("permission").Select(c => c.Value).ToHashSet();
+
+        if (_canView)
+        {
+            await LoadAsync();
+        }
+        else
+        {
+            _isLoading = false;
+        }
+    }
+
+    private async Task LoadAsync()
+    {
+        _isLoading = true;
+        var result = await ApiClient.GetCustomersAsync(includeInactive: true);
+        if (result.Success && result.Data is not null)
+        {
+            _customers = result.Data;
+        }
+        else
+        {
+            Snackbar.Add(result.Error?.Message ?? "Failed to load customers.", Severity.Error);
+        }
+        _isLoading = false;
+    }
+
+    private void OnSearchChanged(string value) => _search = value;
+
+    private void ShowCreateForm()
+    {
+        _editingId = null;
+        _formName = string.Empty;
+        _formPhone = null;
+        _formEmail = null;
+        _formAddress = null;
+        _showForm = true;
+    }
+
+    private void ShowEditForm(CustomerDto customer)
+    {
+        _editingId = customer.Id;
+        _formName = customer.Name;
+        _formPhone = customer.Phone;
+        _formEmail = customer.Email;
+        _formAddress = customer.Address;
+        _showForm = true;
+    }
+
+    private void CancelForm() => _showForm = false;
+
+    private async Task SaveAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_formName))
+        {
+            Snackbar.Add("Customer name is required.", Severity.Warning);
+            return;
+        }
+
+        _isSaving = true;
+
+        var result = _editingId is null
+            ? await ApiClient.CreateCustomerAsync(new CreateCustomerRequest
+            {
+                Name = _formName,
+                Phone = _formPhone,
+                Email = _formEmail,
+                Address = _formAddress,
+            })
+            : await ApiClient.UpdateCustomerAsync(_editingId.Value, new UpdateCustomerRequest
+            {
+                Name = _formName,
+                Phone = _formPhone,
+                Email = _formEmail,
+                Address = _formAddress,
+            });
+
+        if (result.Success)
+        {
+            Snackbar.Add("Customer saved.", Severity.Success);
+            _showForm = false;
+            await LoadAsync();
+        }
+        else
+        {
+            Snackbar.Add(result.Error?.Message ?? "Failed to save customer.", Severity.Error);
+        }
+
+        _isSaving = false;
+    }
+
+    private async Task ActivateAsync(long id)
+    {
+        var result = await ApiClient.ActivateCustomerAsync(id);
+        if (result.Success)
+        {
+            Snackbar.Add("Customer activated.", Severity.Success);
+            await LoadAsync();
+        }
+        else
+        {
+            Snackbar.Add(result.Error?.Message ?? "Failed to activate customer.", Severity.Error);
+        }
+    }
+
+    private async Task DeactivateAsync(long id)
+    {
+        var result = await ApiClient.DeactivateCustomerAsync(id);
+        if (result.Success)
+        {
+            Snackbar.Add("Customer deactivated.", Severity.Success);
+            await LoadAsync();
+        }
+        else
+        {
+            Snackbar.Add(result.Error?.Message ?? "Failed to deactivate customer.", Severity.Error);
+        }
+    }
+
+    private async Task DeleteAsync(long id)
+    {
+        var result = await ApiClient.DeleteCustomerAsync(id);
+        if (result.Success)
+        {
+            Snackbar.Add("Customer deleted.", Severity.Success);
+            await LoadAsync();
+        }
+        else
+        {
+            Snackbar.Add(result.Error?.Message ?? "Failed to delete customer.", Severity.Error);
+        }
+    }
+}
