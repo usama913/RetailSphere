@@ -1,0 +1,198 @@
+@page "/inventory/overview"
+@using RetailSphere.Contracts.Admin
+@using RetailSphere.Contracts.Inventory
+@attribute [Authorize]
+@inject IApiClient ApiClient
+@inject AuthenticationStateProvider AuthStateProvider
+@inject ISnackbar Snackbar
+@inject NavigationManager Nav
+
+<PageTitle>Inventory Overview - RetailSphere</PageTitle>
+
+@if (!_canView)
+{
+    <MudAlert Severity="Severity.Warning">You don't have permission to view inventory.</MudAlert>
+}
+else
+{
+
+<MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween" Class="mb-4">
+    <div>
+        <MudText Typo="Typo.h5">Inventory Overview</MudText>
+        <MudText Typo="Typo.body2" Style="color: var(--mud-palette-text-secondary);">A single-glance snapshot of stock value and what needs attention across every branch.</MudText>
+    </div>
+    <MudButton Variant="Variant.Outlined" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Inventory2" OnClick="@(() => Nav.NavigateTo("inventory/stock"))">
+        Open Branch Stock
+    </MudButton>
+</MudStack>
+
+<MudGrid Class="mb-4">
+    <MudItem xs="12" sm="4">
+        <MudSelect T="long?" Value="_filterBranchId" ValueChanged="OnFilterBranchChangedAsync" Label="Branch" Variant="Variant.Outlined">
+            <MudSelectItem T="long?" Value="@((long?)null)">All branches</MudSelectItem>
+            @foreach (var branch in _branches)
+            {
+                <MudSelectItem T="long?" Value="@((long?)branch.Id)">@branch.Name</MudSelectItem>
+            }
+        </MudSelect>
+    </MudItem>
+</MudGrid>
+
+<MudGrid Class="mb-4">
+    <MudItem xs="6" sm="3">
+        <MudPaper Class="pa-4" Elevation="0" Style="border: 1px solid var(--mud-palette-table-lines);">
+            <MudText Typo="Typo.caption" Style="color: var(--mud-palette-text-secondary);">Tracked SKU/branch rows</MudText>
+            <MudText Typo="Typo.h4">@_trackedCount</MudText>
+        </MudPaper>
+    </MudItem>
+    <MudItem xs="6" sm="3">
+        <MudPaper Class="pa-4" Elevation="0" Style="border: 1px solid var(--mud-palette-table-lines);">
+            <MudText Typo="Typo.caption" Style="color: var(--mud-palette-text-secondary);">Total stock value</MudText>
+            <MudText Typo="Typo.h4">@_totalValue.ToString("0.00")</MudText>
+        </MudPaper>
+    </MudItem>
+    <MudItem xs="6" sm="3">
+        <MudPaper Class="pa-4" Elevation="0" Style="border: 1px solid var(--mud-palette-table-lines);">
+            <MudText Typo="Typo.caption" Style="color: var(--mud-palette-text-secondary);">Low stock</MudText>
+            <MudText Typo="Typo.h4" Style="@(_lowStockCount > 0 ? "color: var(--mud-palette-warning);" : "")">@_lowStockCount</MudText>
+        </MudPaper>
+    </MudItem>
+    <MudItem xs="6" sm="3">
+        <MudPaper Class="pa-4" Elevation="0" Style="border: 1px solid var(--mud-palette-table-lines);">
+            <MudText Typo="Typo.caption" Style="color: var(--mud-palette-text-secondary);">Out of stock</MudText>
+            <MudText Typo="Typo.h4" Style="@(_outOfStockCount > 0 ? "color: var(--mud-palette-error);" : "")">@_outOfStockCount</MudText>
+        </MudPaper>
+    </MudItem>
+</MudGrid>
+
+<MudText Typo="Typo.h6" Class="mb-2">Needs attention</MudText>
+<MudText Typo="Typo.body2" Class="mb-2" Style="color: var(--mud-palette-text-secondary);">
+    Out-of-stock rows first, then low-stock rows closest to running out. Use Adjust Stock, Transfer Stock, or a Purchase Order to restock — this page is read-only.
+</MudText>
+
+@if (_isLoading)
+{
+    <MudProgressLinear Indeterminate="true" Class="mb-4" />
+}
+else if (_attentionItems.Count == 0)
+{
+    <MudAlert Severity="Severity.Success">Nothing needs attention — every tracked variant is above its reorder point (or has no threshold set).</MudAlert>
+}
+else
+{
+    <MudTable Items="@_attentionItems" Hover="true" Dense="true">
+        <HeaderContent>
+            <MudTh>SKU</MudTh>
+            <MudTh>Product</MudTh>
+            <MudTh>Branch</MudTh>
+            <MudTh>Qty on hand</MudTh>
+            <MudTh>Reorder point</MudTh>
+            <MudTh>Status</MudTh>
+        </HeaderContent>
+        <RowTemplate>
+            <MudTd DataLabel="SKU">@(context.Sku ?? "—")</MudTd>
+            <MudTd DataLabel="Product">@(context.ProductName ?? "—")</MudTd>
+            <MudTd DataLabel="Branch">@(context.BranchName ?? "—")</MudTd>
+            <MudTd DataLabel="Qty on hand">@context.QuantityOnHand</MudTd>
+            <MudTd DataLabel="Reorder point">@(context.ReorderPoint?.ToString("0.###") ?? "—")</MudTd>
+            <MudTd DataLabel="Status">
+                @if (context.QuantityOnHand <= 0)
+                {
+                    <MudChip T="string" Size="Size.Small" Color="Color.Error">Out of stock</MudChip>
+                }
+                else
+                {
+                    <MudChip T="string" Size="Size.Small" Color="Color.Warning">Low stock</MudChip>
+                }
+            </MudTd>
+        </RowTemplate>
+    </MudTable>
+
+    @if (_attentionTruncated)
+    {
+        <MudText Typo="Typo.caption" Class="mt-2" Style="color: var(--mud-palette-text-secondary); display:block;">
+            Showing the @_attentionItems.Count most urgent rows. Use Branch Stock with the "Low stock only" filter to see the rest.
+        </MudText>
+    }
+}
+
+}
+
+@code {
+    // Everything on this page is derived from a single unpaginated fetch of every
+    // StockItem matching the current branch filter, capped at FetchLimit — same
+    // simplification as Branch Stock's summary cards (see that page's remarks);
+    // fine for SMB-scale inventories, should move server-side if this ever needs
+    // to scale further.
+    private const int FetchLimit = 5000;
+    private const int AttentionRowLimit = 100;
+
+    private IReadOnlyList<BranchDto> _branches = [];
+    private IReadOnlyList<StockItemDto> _allItems = [];
+    private HashSet<string> _permissions = [];
+
+    private bool _isLoading = true;
+    private long? _filterBranchId;
+
+    private int _trackedCount;
+    private decimal _totalValue;
+    private int _lowStockCount;
+    private int _outOfStockCount;
+
+    private List<StockItemDto> _attentionItems = [];
+    private bool _attentionTruncated;
+
+    private bool _canView => _permissions.Contains("inventory.stock.view");
+
+    protected override async Task OnInitializedAsync()
+    {
+        var state = await AuthStateProvider.GetAuthenticationStateAsync();
+        _permissions = state.User.FindAll("permission").Select(c => c.Value).ToHashSet();
+
+        if (_canView)
+        {
+            var branchesResult = await ApiClient.GetBranchesAsync(includeInactive: true);
+            if (branchesResult.Success && branchesResult.Data is not null)
+                _branches = branchesResult.Data;
+
+            await LoadAsync();
+        }
+        else
+        {
+            _isLoading = false;
+        }
+    }
+
+    private async Task LoadAsync()
+    {
+        _isLoading = true;
+
+        var result = await ApiClient.GetStockItemsAsync(1, FetchLimit, _filterBranchId);
+        _allItems = result.Success && result.Data is not null ? result.Data.Data : [];
+
+        if (!result.Success)
+            Snackbar.Add(result.Error?.Message ?? "Failed to load inventory overview.", Severity.Error);
+
+        _trackedCount = _allItems.Count;
+        _totalValue = _allItems.Sum(s => s.StockValue);
+        _lowStockCount = _allItems.Count(s => s.IsLowStock);
+        _outOfStockCount = _allItems.Count(s => s.QuantityOnHand <= 0);
+
+        var candidates = _allItems
+            .Where(s => s.QuantityOnHand <= 0 || s.IsLowStock)
+            .OrderBy(s => s.QuantityOnHand <= 0 ? 0 : 1)
+            .ThenBy(s => s.ReorderPoint.HasValue && s.ReorderPoint.Value != 0 ? s.QuantityOnHand / s.ReorderPoint.Value : s.QuantityOnHand)
+            .ToList();
+
+        _attentionTruncated = candidates.Count > AttentionRowLimit;
+        _attentionItems = candidates.Take(AttentionRowLimit).ToList();
+
+        _isLoading = false;
+    }
+
+    private async Task OnFilterBranchChangedAsync(long? value)
+    {
+        _filterBranchId = value;
+        await LoadAsync();
+    }
+}

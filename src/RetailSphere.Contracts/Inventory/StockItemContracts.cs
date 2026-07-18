@@ -31,6 +31,18 @@ public sealed class StockItemDto
 
     public required decimal QuantityOnHand { get; init; }
 
+    /// <summary>Purchase/landed cost of the variant, resolved from the current Product/ProductVariant — used to compute StockValue.</summary>
+    public decimal? CostPrice { get; init; }
+
+    /// <summary>QuantityOnHand * CostPrice (0 when CostPrice isn't set) — the money value of stock on hand at this branch.</summary>
+    public required decimal StockValue { get; init; }
+
+    /// <summary>The variant's low-stock threshold (null = no threshold set), resolved from the current Product/ProductVariant.</summary>
+    public decimal? ReorderPoint { get; init; }
+
+    /// <summary>True when ReorderPoint is set and QuantityOnHand has dropped to or below it.</summary>
+    public required bool IsLowStock { get; init; }
+
     public required IReadOnlyList<StockAdjustmentDto> Adjustments { get; init; }
 }
 

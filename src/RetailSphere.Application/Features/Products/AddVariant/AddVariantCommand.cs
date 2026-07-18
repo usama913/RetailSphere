@@ -18,4 +18,5 @@ public sealed record AddVariantCommand(
     decimal? Length,
     decimal? Width,
     decimal? Height,
+    decimal? ReorderPoint,
     IReadOnlyList<long> AttributeValueIds) : IRequest<Result<ProductDto>>;

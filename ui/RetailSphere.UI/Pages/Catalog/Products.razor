@@ -141,6 +141,7 @@ else
                         <MudTh>Price</MudTh>
                         <MudTh>Compare-at</MudTh>
                         <MudTh>Tax %</MudTh>
+                        <MudTh>Reorder pt</MudTh>
                         <MudTh>Stock</MudTh>
                         <MudTh>Status</MudTh>
                         <MudTh>Actions</MudTh>
@@ -153,6 +154,7 @@ else
                         <MudTd DataLabel="Price">@context.Price.ToString("0.00")</MudTd>
                         <MudTd DataLabel="Compare-at">@(context.CompareAtPrice?.ToString("0.00") ?? "—")</MudTd>
                         <MudTd DataLabel="Tax %">@context.TaxRate.ToString("0.##") (@context.TaxType)</MudTd>
+                        <MudTd DataLabel="Reorder pt">@(context.ReorderPoint?.ToString("0.###") ?? "—")</MudTd>
                         <MudTd DataLabel="Stock">
                             @if (_canAdjustStock && _stockBranchId is not null)
                             {
@@ -166,6 +168,10 @@ else
                             else
                             {
                                 <text>—</text>
+                            }
+                            @if (IsVariantLowStock(context))
+                            {
+                                <MudChip T="string" Size="Size.Small" Color="Color.Warning" Class="ml-1">Low</MudChip>
                             }
                         </MudTd>
                         <MudTd DataLabel="Status">
@@ -240,6 +246,9 @@ else
                 }
                 <MudItem xs="12" sm="6" md="3">
                     <MudNumericField T="decimal?" Value="_genCostPrice" ValueChanged="OnGenCostPriceChanged" Label="Cost price (optional)" Variant="Variant.Outlined" Margin="Margin.Dense" Min="0" />
+                </MudItem>
+                <MudItem xs="12" sm="6" md="3">
+                    <MudNumericField @bind-Value="_genReorderPoint" Label="Reorder point (optional)" Variant="Variant.Outlined" Margin="Margin.Dense" Min="0" />
                 </MudItem>
                 <MudItem xs="12" sm="6" md="3" Class="d-flex align-center">
                     <MudSwitch T="bool" Value="_genUseProfitPercent" ValueChanged="OnGenUseProfitPercentChanged" Label="Price by profit %" Color="Color.Primary" />
@@ -412,6 +421,7 @@ else
     private decimal? _genLength;
     private decimal? _genWidth;
     private decimal? _genHeight;
+    private decimal? _genReorderPoint;
     private bool _isGeneratingVariants;
 
     private string _imageUrl = string.Empty;
@@ -691,6 +701,10 @@ else
         return parts.Count > 0 ? string.Join(" · ", parts) : "—";
     }
 
+    /// <summary>True when the variant has a ReorderPoint set and its stock across all branches has dropped to or below it.</summary>
+    private bool IsVariantLowStock(ProductVariantDto variant) =>
+        _canViewStock && variant.ReorderPoint.HasValue && GetVariantTotalStock(variant.Id) <= variant.ReorderPoint.Value;
+
     private void ResetGenerateForm()
     {
         _genSku = null;
@@ -708,6 +722,7 @@ else
         _genLength = null;
         _genWidth = null;
         _genHeight = null;
+        _genReorderPoint = null;
         _imageUrl = string.Empty;
     }
 
@@ -834,6 +849,7 @@ else
                 Length = _genLength,
                 Width = _genWidth,
                 Height = _genHeight,
+                ReorderPoint = _genReorderPoint,
                 AttributeValueIds = combination,
             });
 

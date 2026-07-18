@@ -5,7 +5,14 @@ namespace RetailSphere.Application.Features.Inventory;
 
 internal static class StockItemMappings
 {
-    public static StockItemDto ToDto(StockItem stockItem, string? sku, long? productId, string? productName, string? branchName) => new()
+    public static StockItemDto ToDto(
+        StockItem stockItem,
+        string? sku,
+        long? productId,
+        string? productName,
+        string? branchName,
+        decimal? costPrice = null,
+        decimal? reorderPoint = null) => new()
     {
         Id = stockItem.Id,
         ProductVariantId = stockItem.ProductVariantId,
@@ -15,6 +22,10 @@ internal static class StockItemMappings
         BranchId = stockItem.BranchId,
         BranchName = branchName,
         QuantityOnHand = stockItem.QuantityOnHand,
+        CostPrice = costPrice,
+        StockValue = stockItem.QuantityOnHand * (costPrice ?? 0m),
+        ReorderPoint = reorderPoint,
+        IsLowStock = reorderPoint.HasValue && stockItem.QuantityOnHand <= reorderPoint.Value,
         Adjustments = stockItem.Adjustments
             .OrderByDescending(a => a.CreatedAtUtc)
             .Select(ToDto)

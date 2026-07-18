@@ -70,6 +70,7 @@ public sealed class AddVariantCommandHandler(
             request.Length,
             request.Width,
             request.Height,
+            request.ReorderPoint,
             request.AttributeValueIds);
         if (addResult.IsFailure)
             return Result.Failure<ProductDto>(addResult.Error);

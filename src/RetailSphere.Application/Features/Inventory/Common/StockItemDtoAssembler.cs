@@ -20,7 +20,7 @@ public sealed class StockItemDtoAssembler(IProductRepository productRepository, 
 
         var branch = await branchRepository.GetByIdAsync(stockItem.BranchId, cancellationToken);
 
-        return StockItemMappings.ToDto(stockItem, variant?.Sku, product?.Id, product?.Name, branch?.Name);
+        return StockItemMappings.ToDto(stockItem, variant?.Sku, product?.Id, product?.Name, branch?.Name, variant?.CostPrice, variant?.ReorderPoint);
     }
 
     public async Task<IReadOnlyList<StockItemDto>> ToDtosAsync(IEnumerable<StockItem> stockItems, CancellationToken cancellationToken = default)
@@ -40,7 +40,9 @@ public sealed class StockItemDtoAssembler(IProductRepository productRepository, 
                     variant?.Sku,
                     product?.Id,
                     product?.Name,
-                    branches.TryGetValue(stockItem.BranchId, out var branchName) ? branchName : null);
+                    branches.TryGetValue(stockItem.BranchId, out var branchName) ? branchName : null,
+                    variant?.CostPrice,
+                    variant?.ReorderPoint);
             })
             .ToList();
     }

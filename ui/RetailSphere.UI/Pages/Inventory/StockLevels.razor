@@ -53,6 +53,36 @@ else
             }
         </MudSelect>
     </MudItem>
+    <MudItem xs="12" sm="6" md="4" Class="d-flex align-center">
+        <MudCheckBox T="bool" Value="_lowStockOnly" ValueChanged="OnLowStockOnlyChangedAsync" Label="Low stock only" />
+    </MudItem>
+</MudGrid>
+
+<MudGrid Class="mb-4">
+    <MudItem xs="6" sm="3">
+        <MudPaper Class="pa-3" Elevation="0" Style="border: 1px solid var(--mud-palette-table-lines);">
+            <MudText Typo="Typo.caption" Style="color: var(--mud-palette-text-secondary);">Tracked SKU/branch rows</MudText>
+            <MudText Typo="Typo.h6">@_summaryTrackedCount</MudText>
+        </MudPaper>
+    </MudItem>
+    <MudItem xs="6" sm="3">
+        <MudPaper Class="pa-3" Elevation="0" Style="border: 1px solid var(--mud-palette-table-lines);">
+            <MudText Typo="Typo.caption" Style="color: var(--mud-palette-text-secondary);">Total stock value</MudText>
+            <MudText Typo="Typo.h6">@_summaryTotalValue.ToString("0.00")</MudText>
+        </MudPaper>
+    </MudItem>
+    <MudItem xs="6" sm="3">
+        <MudPaper Class="pa-3" Elevation="0" Style="border: 1px solid var(--mud-palette-table-lines);">
+            <MudText Typo="Typo.caption" Style="color: var(--mud-palette-text-secondary);">Low stock</MudText>
+            <MudText Typo="Typo.h6" Style="@(_summaryLowStockCount > 0 ? "color: var(--mud-palette-warning);" : "")">@_summaryLowStockCount</MudText>
+        </MudPaper>
+    </MudItem>
+    <MudItem xs="6" sm="3">
+        <MudPaper Class="pa-3" Elevation="0" Style="border: 1px solid var(--mud-palette-table-lines);">
+            <MudText Typo="Typo.caption" Style="color: var(--mud-palette-text-secondary);">Out of stock</MudText>
+            <MudText Typo="Typo.h6" Style="@(_summaryOutOfStockCount > 0 ? "color: var(--mud-palette-error);" : "")">@_summaryOutOfStockCount</MudText>
+        </MudPaper>
+    </MudItem>
 </MudGrid>
 
 @if (_showAdjustForm)
@@ -163,19 +193,31 @@ else
     </MudPaper>
 }
 
-<MudTable Items="@_stockItems" Hover="true" Dense="true" Loading="@_isLoading">
+<MudTable Items="@DisplayedStockItems" Hover="true" Dense="true" Loading="@_isLoading">
     <HeaderContent>
         <MudTh>SKU</MudTh>
         <MudTh>Product</MudTh>
         <MudTh>Branch</MudTh>
         <MudTh>Qty on hand</MudTh>
+        <MudTh>Value</MudTh>
         <MudTh>Actions</MudTh>
     </HeaderContent>
     <RowTemplate>
         <MudTd DataLabel="SKU">@(context.Sku ?? "—")</MudTd>
         <MudTd DataLabel="Product">@(context.ProductName ?? "—")</MudTd>
         <MudTd DataLabel="Branch">@(context.BranchName ?? "—")</MudTd>
-        <MudTd DataLabel="Qty on hand">@context.QuantityOnHand</MudTd>
+        <MudTd DataLabel="Qty on hand">
+            @context.QuantityOnHand
+            @if (context.QuantityOnHand <= 0)
+            {
+                <MudChip T="string" Size="Size.Small" Color="Color.Error" Class="ml-1">Out of stock</MudChip>
+            }
+            else if (context.IsLowStock)
+            {
+                <MudChip T="string" Size="Size.Small" Color="Color.Warning" Class="ml-1">Low</MudChip>
+            }
+        </MudTd>
+        <MudTd DataLabel="Value">@context.StockValue.ToString("0.00")</MudTd>
         <MudTd DataLabel="Actions">
             <MudIconButton Icon="@Icons.Material.Filled.History" Size="Size.Small" OnClick="@(() => ToggleHistory(context.Id))" />
         </MudTd>
@@ -184,7 +226,7 @@ else
 
 @if (_expandedStockItemId is not null)
 {
-    var expanded = _stockItems.FirstOrDefault(s => s.Id == _expandedStockItemId);
+    var expanded = DisplayedStockItems.FirstOrDefault(s => s.Id == _expandedStockItemId);
     if (expanded is not null)
     {
         <MudPaper Class="pa-4 mt-2" Elevation="1">
@@ -214,11 +256,14 @@ else
     }
 }
 
-<MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.Center" Class="mt-4" Spacing="4">
-    <MudIconButton Icon="@Icons.Material.Filled.ChevronLeft" Disabled="@(_page <= 1)" OnClick="@(() => ChangePageAsync(_page - 1))" />
-    <MudText Typo="Typo.body2">Page @_page of @_totalPages</MudText>
-    <MudIconButton Icon="@Icons.Material.Filled.ChevronRight" Disabled="@(_page >= _totalPages)" OnClick="@(() => ChangePageAsync(_page + 1))" />
-</MudStack>
+@if (!_lowStockOnly)
+{
+    <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.Center" Class="mt-4" Spacing="4">
+        <MudIconButton Icon="@Icons.Material.Filled.ChevronLeft" Disabled="@(_page <= 1)" OnClick="@(() => ChangePageAsync(_page - 1))" />
+        <MudText Typo="Typo.body2">Page @_page of @_totalPages</MudText>
+        <MudIconButton Icon="@Icons.Material.Filled.ChevronRight" Disabled="@(_page >= _totalPages)" OnClick="@(() => ChangePageAsync(_page + 1))" />
+    </MudStack>
+}
 
 }
 
@@ -240,6 +285,22 @@ else
     private int _totalPages = 1;
 
     private long? _expandedStockItemId;
+
+    // Summary stats + "low stock only" view are both derived from a single unpaginated
+    // fetch of every StockItem matching the current branch/product filters (capped at
+    // SummaryFetchLimit — comfortably above what an SMB-scale catalog needs; if this app
+    // ever needs to scale past that, these two features should move to dedicated
+    // server-side aggregate/filter endpoints instead of a bulk client-side fetch).
+    private const int SummaryFetchLimit = 5000;
+    private IReadOnlyList<StockItemDto> _summaryItems = [];
+    private bool _lowStockOnly;
+    private int _summaryTrackedCount;
+    private decimal _summaryTotalValue;
+    private int _summaryLowStockCount;
+    private int _summaryOutOfStockCount;
+
+    private IReadOnlyList<StockItemDto> DisplayedStockItems =>
+        _lowStockOnly ? _summaryItems.Where(s => s.IsLowStock).ToList() : _stockItems;
 
     private bool _showAdjustForm;
     private long? _adjProductId;
@@ -280,6 +341,7 @@ else
                 _attributes = attributesResult.Data;
 
             await LoadAsync();
+            await LoadSummaryAsync();
         }
         else
         {
@@ -307,11 +369,24 @@ else
         _isLoading = false;
     }
 
+    /// <summary>Powers the summary stat cards and the "Low stock only" view — see the fields' remarks above.</summary>
+    private async Task LoadSummaryAsync()
+    {
+        var result = await ApiClient.GetStockItemsAsync(1, SummaryFetchLimit, _filterBranchId, _filterProductId);
+        _summaryItems = result.Success && result.Data is not null ? result.Data.Data : [];
+
+        _summaryTrackedCount = _summaryItems.Count;
+        _summaryTotalValue = _summaryItems.Sum(s => s.StockValue);
+        _summaryLowStockCount = _summaryItems.Count(s => s.IsLowStock);
+        _summaryOutOfStockCount = _summaryItems.Count(s => s.QuantityOnHand <= 0);
+    }
+
     private async Task OnFilterBranchChanged(long? value)
     {
         _filterBranchId = value;
         _page = 1;
         await LoadAsync();
+        await LoadSummaryAsync();
     }
 
     private async Task OnFilterProductChanged(long? value)
@@ -319,6 +394,13 @@ else
         _filterProductId = value;
         _page = 1;
         await LoadAsync();
+        await LoadSummaryAsync();
+    }
+
+    private async Task OnLowStockOnlyChangedAsync(bool value)
+    {
+        _lowStockOnly = value;
+        await Task.CompletedTask;
     }
 
     private async Task ChangePageAsync(int newPage)
@@ -405,6 +487,7 @@ else
             Snackbar.Add("Stock adjusted.", Severity.Success);
             _showAdjustForm = false;
             await LoadAsync();
+            await LoadSummaryAsync();
         }
         else
         {
@@ -474,6 +557,7 @@ else
             Snackbar.Add("Stock transferred.", Severity.Success);
             _showTransferForm = false;
             await LoadAsync();
+            await LoadSummaryAsync();
         }
         else
         {

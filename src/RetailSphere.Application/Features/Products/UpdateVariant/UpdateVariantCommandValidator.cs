@@ -21,5 +21,6 @@ public sealed class UpdateVariantCommandValidator : AbstractValidator<UpdateVari
         RuleFor(x => x.Length).GreaterThanOrEqualTo(0).When(x => x.Length.HasValue);
         RuleFor(x => x.Width).GreaterThanOrEqualTo(0).When(x => x.Width.HasValue);
         RuleFor(x => x.Height).GreaterThanOrEqualTo(0).When(x => x.Height.HasValue);
+        RuleFor(x => x.ReorderPoint).GreaterThanOrEqualTo(0).When(x => x.ReorderPoint.HasValue);
     }
 }

@@ -65,6 +65,14 @@ public sealed class ProductVariant : Entity<long>
 
     public bool IsActive { get; private set; } = true;
 
+    /// <summary>
+    /// Optional low-stock threshold for this variant (same across all branches — a
+    /// per-branch override would need a new branch-scoped entity, more surface area
+    /// than Phase-1 stock visibility needs). Null means "no threshold set" — the
+    /// variant never shows as low stock regardless of quantity.
+    /// </summary>
+    public decimal? ReorderPoint { get; private set; }
+
     /// <summary>The AttributeValues (e.g. Size=42, Color=Red) that identify this specific variant.</summary>
     public IReadOnlyCollection<long> AttributeValueIds => _attributeValueIds.AsReadOnly();
 
@@ -86,6 +94,7 @@ public sealed class ProductVariant : Entity<long>
         decimal? length,
         decimal? width,
         decimal? height,
+        decimal? reorderPoint,
         IEnumerable<long> attributeValueIds)
     {
         var variant = new ProductVariant
@@ -103,6 +112,7 @@ public sealed class ProductVariant : Entity<long>
             Length = length,
             Width = width,
             Height = height,
+            ReorderPoint = reorderPoint,
             IsActive = true,
         };
 
@@ -131,6 +141,11 @@ public sealed class ProductVariant : Entity<long>
     {
         Barcode = barcode?.Value;
         BarcodeType = NormalizeBarcodeType(barcodeType);
+    }
+
+    internal void UpdateReorderPoint(decimal? reorderPoint)
+    {
+        ReorderPoint = reorderPoint;
     }
 
     private static string NormalizeBarcodeType(string? barcodeType) =>

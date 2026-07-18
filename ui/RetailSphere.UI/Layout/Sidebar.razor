@@ -40,7 +40,8 @@
             </MudNavGroup>
 
             <MudNavGroup Title="Inventory" Icon="@Icons.Material.Filled.Inventory" @ref="_inventoryGroup"
-                         hidden="@(!IsVisible("Inventory", "Stock", "Transfers", "Adjustments"))">
+                         hidden="@(!IsVisible("Inventory", "Overview", "Stock", "Transfers", "Adjustments"))">
+                <MudNavLink Href="inventory/overview" Icon="@Icons.Material.Filled.Dashboard" hidden="@(!HasPermission("inventory.stock.view") || !IsVisible("Overview"))">Overview</MudNavLink>
                 <MudNavLink Href="inventory/stock" Icon="@Icons.Material.Filled.Inventory2" hidden="@(!HasPermission("inventory.stock.view") || !IsVisible("Stock"))">Branch Stock</MudNavLink>
                 <MudNavLink Href="inventory/transfers" Icon="@Icons.Material.Filled.SwapHoriz" hidden="@(!HasPermission("inventory.transfer.view") || !IsVisible("Transfers"))">Transfers</MudNavLink>
                 <MudNavLink Href="inventory/adjustments" Icon="@Icons.Material.Filled.Tune" hidden="@(!HasPermission("inventory.adjustment.view") || !IsVisible("Adjustments"))">Adjustments</MudNavLink>

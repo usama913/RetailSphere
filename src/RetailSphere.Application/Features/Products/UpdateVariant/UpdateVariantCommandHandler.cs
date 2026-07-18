@@ -66,6 +66,7 @@ public sealed class UpdateVariantCommandHandler(
             request.Length,
             request.Width,
             request.Height,
+            request.ReorderPoint,
             request.AttributeValueIds);
         if (updateResult.IsFailure)
             return Result.Failure<ProductDto>(updateResult.Error);
