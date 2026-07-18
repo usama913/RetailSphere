@@ -1,0 +1,405 @@
+@page "/admin/users"
+@attribute [Authorize]
+@inject IApiClient ApiClient
+@inject AuthenticationStateProvider AuthStateProvider
+@inject ISnackbar Snackbar
+
+<PageTitle>Users - RetailSphere</PageTitle>
+
+@if (!_canView)
+{
+    <MudAlert Severity="Severity.Warning">You don't have permission to view users.</MudAlert>
+}
+else
+{
+
+<MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween" Class="mb-4">
+    <div>
+        <MudText Typo="Typo.h5">Users</MudText>
+        <MudText Typo="Typo.body2" Style="color: var(--mud-palette-text-secondary);">People who can sign in to RetailSphere.</MudText>
+    </div>
+    @if (_canCreate)
+    {
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" OnClick="ShowCreateForm">
+            New User
+        </MudButton>
+    }
+</MudStack>
+
+<MudTextField T="string" Value="@_search" ValueChanged="OnSearchChanged" Label="Search by name or email"
+              Variant="Variant.Outlined" Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search"
+              Class="mb-4" Immediate="true" DebounceInterval="300" />
+
+@if (_showForm)
+{
+    <MudPaper Class="pa-4 mb-4" Elevation="1">
+        <MudText Typo="Typo.h6" Class="mb-3">@(_editingId is null ? "New User" : "Edit User")</MudText>
+        <MudGrid>
+            @if (_editingId is null)
+            {
+                <MudItem xs="12" sm="6">
+                    <MudTextField @bind-Value="_formEmail" Label="Email" Variant="Variant.Outlined" Required="true" InputType="InputType.Email" />
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <MudTextField @bind-Value="_formPassword" Label="Password" Variant="Variant.Outlined" Required="true" InputType="InputType.Password" />
+                </MudItem>
+            }
+            <MudItem xs="12" sm="6">
+                <MudTextField @bind-Value="_formFirstName" Label="First Name" Variant="Variant.Outlined" Required="true" />
+            </MudItem>
+            <MudItem xs="12" sm="6">
+                <MudTextField @bind-Value="_formLastName" Label="Last Name" Variant="Variant.Outlined" Required="true" />
+            </MudItem>
+            <MudItem xs="12" sm="6">
+                <MudSelect T="long?" @bind-Value="_formBranchId" Label="Branch" Variant="Variant.Outlined">
+                    <MudSelectItem T="long?" Value="@((long?)null)">— No branch (all branches) —</MudSelectItem>
+                    @foreach (var branch in _branches)
+                    {
+                        <MudSelectItem T="long?" Value="@((long?)branch.Id)">@branch.Name</MudSelectItem>
+                    }
+                </MudSelect>
+            </MudItem>
+        </MudGrid>
+
+        <MudText Typo="Typo.subtitle1" Class="mt-4 mb-2">Roles</MudText>
+        <MudGrid>
+            @foreach (var role in _roles)
+            {
+                <MudItem xs="12" sm="6" md="4">
+                    <MudCheckBox T="bool"
+                                 Value="@_selectedRoleIds.Contains(role.Id)"
+                                 ValueChanged="@((bool v) => ToggleRole(role.Id, v))"
+                                 Label="@role.Name"
+                                 Dense="true" />
+                </MudItem>
+            }
+        </MudGrid>
+
+        <MudStack Row="true" Class="mt-4" Spacing="2">
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="SaveAsync" Disabled="@_isSaving">Save</MudButton>
+            <MudButton Variant="Variant.Text" OnClick="CancelForm">Cancel</MudButton>
+        </MudStack>
+
+        @if (_editingId is not null)
+        {
+            <MudDivider Class="my-4" />
+            <MudText Typo="Typo.subtitle1" Class="mb-2">Reset Password</MudText>
+            <MudGrid>
+                <MudItem xs="12" sm="6">
+                    <MudTextField @bind-Value="_resetPassword" Label="New Password" Variant="Variant.Outlined" InputType="InputType.Password" />
+                </MudItem>
+                <MudItem xs="12" sm="6" Class="d-flex align-center">
+                    <MudButton Variant="Variant.Outlined" Color="Color.Secondary" OnClick="ResetPasswordAsync" Disabled="@_isSaving">
+                        Reset Password
+                    </MudButton>
+                </MudItem>
+            </MudGrid>
+        }
+    </MudPaper>
+}
+
+<MudTable Items="@_users" Hover="true" Dense="true" Loading="@_isLoading">
+    <HeaderContent>
+        <MudTh>Name</MudTh>
+        <MudTh>Email</MudTh>
+        <MudTh>Branch</MudTh>
+        <MudTh>Roles</MudTh>
+        <MudTh>Status</MudTh>
+        <MudTh>Last Login</MudTh>
+        <MudTh>Actions</MudTh>
+    </HeaderContent>
+    <RowTemplate>
+        <MudTd DataLabel="Name">@context.FirstName @context.LastName</MudTd>
+        <MudTd DataLabel="Email">@context.Email</MudTd>
+        <MudTd DataLabel="Branch">@(context.BranchName ?? "All branches")</MudTd>
+        <MudTd DataLabel="Roles">
+            @foreach (var roleName in context.RoleNames)
+            {
+                <MudChip T="string" Size="Size.Small" Class="mr-1">@roleName</MudChip>
+            }
+        </MudTd>
+        <MudTd DataLabel="Status">
+            <MudChip T="string" Size="Size.Small" Color="@(context.IsActive ? Color.Success : Color.Default)">
+                @(context.IsActive ? "Active" : "Inactive")
+            </MudChip>
+        </MudTd>
+        <MudTd DataLabel="Last Login">@(context.LastLoginAtUtc?.ToLocalTime().ToString("g") ?? "Never")</MudTd>
+        <MudTd DataLabel="Actions">
+            @if (_canEdit)
+            {
+                <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small" OnClick="@(() => ShowEditForm(context))" />
+            }
+            @if (_canDeactivate)
+            {
+                @if (context.IsActive)
+                {
+                    <MudIconButton Icon="@Icons.Material.Filled.PauseCircle" Size="Size.Small" OnClick="@(() => DeactivateAsync(context.Id))" />
+                }
+                else
+                {
+                    <MudIconButton Icon="@Icons.Material.Filled.PlayCircle" Size="Size.Small" OnClick="@(() => ActivateAsync(context.Id))" />
+                }
+            }
+        </MudTd>
+    </RowTemplate>
+</MudTable>
+
+<MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.Center" Class="mt-4" Spacing="4">
+    <MudIconButton Icon="@Icons.Material.Filled.ChevronLeft" Disabled="@(_page <= 1)" OnClick="@(() => ChangePageAsync(_page - 1))" />
+    <MudText Typo="Typo.body2">Page @_page of @_totalPages</MudText>
+    <MudIconButton Icon="@Icons.Material.Filled.ChevronRight" Disabled="@(_page >= _totalPages)" OnClick="@(() => ChangePageAsync(_page + 1))" />
+</MudStack>
+
+}
+
+@code {
+    private const int PageSize = 25;
+
+    private IReadOnlyList<UserDto> _users = [];
+    private IReadOnlyList<BranchDto> _branches = [];
+    private IReadOnlyList<RoleDto> _roles = [];
+    private HashSet<long> _selectedRoleIds = [];
+    private HashSet<string> _permissions = [];
+
+    private bool _isLoading = true;
+    private bool _isSaving;
+    private bool _showForm;
+    private long? _editingId;
+    private string _search = string.Empty;
+    private int _page = 1;
+    private long _totalCount;
+    private int _totalPages = 1;
+
+    private string _formEmail = string.Empty;
+    private string _formPassword = string.Empty;
+    private string _formFirstName = string.Empty;
+    private string _formLastName = string.Empty;
+    private long? _formBranchId;
+    private string _resetPassword = string.Empty;
+
+    private bool _canView => _permissions.Contains("admin.users.view");
+    private bool _canCreate => _permissions.Contains("admin.users.create");
+    private bool _canEdit => _permissions.Contains("admin.users.edit");
+    private bool _canDeactivate => _permissions.Contains("admin.users.deactivate");
+
+    protected override async Task OnInitializedAsync()
+    {
+        var state = await AuthStateProvider.GetAuthenticationStateAsync();
+        _permissions = state.User.FindAll("permission").Select(c => c.Value).ToHashSet();
+
+        if (_canView)
+        {
+            var branchesResult = await ApiClient.GetBranchesAsync(includeInactive: true);
+            if (branchesResult.Success && branchesResult.Data is not null)
+                _branches = branchesResult.Data;
+
+            var rolesResult = await ApiClient.GetRolesAsync();
+            if (rolesResult.Success && rolesResult.Data is not null)
+                _roles = rolesResult.Data;
+
+            await LoadAsync();
+        }
+        else
+        {
+            _isLoading = false;
+        }
+    }
+
+    private async Task LoadAsync()
+    {
+        _isLoading = true;
+
+        var result = await ApiClient.GetUsersAsync(_page, PageSize, string.IsNullOrWhiteSpace(_search) ? null : _search);
+        if (result.Success && result.Data is not null)
+        {
+            _users = result.Data.Data;
+            _totalCount = result.Data.TotalCount;
+            _totalPages = Math.Max(1, (int)Math.Ceiling(_totalCount / (double)PageSize));
+        }
+        else
+        {
+            Snackbar.Add(result.Error?.Message ?? "Failed to load users.", Severity.Error);
+        }
+
+        _isLoading = false;
+    }
+
+    private async Task OnSearchChanged(string value)
+    {
+        _search = value;
+        _page = 1;
+        await LoadAsync();
+    }
+
+    private async Task ChangePageAsync(int newPage)
+    {
+        _page = newPage;
+        await LoadAsync();
+    }
+
+    private void ToggleRole(long roleId, bool isSelected)
+    {
+        if (isSelected)
+        {
+            _selectedRoleIds.Add(roleId);
+        }
+        else
+        {
+            _selectedRoleIds.Remove(roleId);
+        }
+    }
+
+    private void ShowCreateForm()
+    {
+        _editingId = null;
+        _formEmail = string.Empty;
+        _formPassword = string.Empty;
+        _formFirstName = string.Empty;
+        _formLastName = string.Empty;
+        _formBranchId = null;
+        _selectedRoleIds = [];
+        _resetPassword = string.Empty;
+        _showForm = true;
+    }
+
+    private void ShowEditForm(UserDto user)
+    {
+        _editingId = user.Id;
+        _formEmail = user.Email;
+        _formPassword = string.Empty;
+        _formFirstName = user.FirstName;
+        _formLastName = user.LastName;
+        _formBranchId = user.BranchId;
+        _selectedRoleIds = user.RoleIds.ToHashSet();
+        _resetPassword = string.Empty;
+        _showForm = true;
+    }
+
+    private void CancelForm() => _showForm = false;
+
+    private async Task SaveAsync()
+    {
+        if (_editingId is null)
+        {
+            if (string.IsNullOrWhiteSpace(_formEmail) || string.IsNullOrWhiteSpace(_formPassword) ||
+                string.IsNullOrWhiteSpace(_formFirstName) || string.IsNullOrWhiteSpace(_formLastName))
+            {
+                Snackbar.Add("Email, password, first name, and last name are required.", Severity.Warning);
+                return;
+            }
+
+            _isSaving = true;
+
+            var createResult = await ApiClient.CreateUserAsync(new CreateUserRequest
+            {
+                Email = _formEmail,
+                Password = _formPassword,
+                FirstName = _formFirstName,
+                LastName = _formLastName,
+                BranchId = _formBranchId,
+                RoleIds = _selectedRoleIds.ToList(),
+            });
+
+            if (createResult.Success)
+            {
+                Snackbar.Add("User created.", Severity.Success);
+                _showForm = false;
+                await LoadAsync();
+            }
+            else
+            {
+                Snackbar.Add(createResult.Error?.Message ?? "Failed to create user.", Severity.Error);
+            }
+        }
+        else
+        {
+            if (string.IsNullOrWhiteSpace(_formFirstName) || string.IsNullOrWhiteSpace(_formLastName))
+            {
+                Snackbar.Add("First name and last name are required.", Severity.Warning);
+                return;
+            }
+
+            _isSaving = true;
+
+            var updateResult = await ApiClient.UpdateUserAsync(_editingId.Value, new UpdateUserRequest
+            {
+                FirstName = _formFirstName,
+                LastName = _formLastName,
+                BranchId = _formBranchId,
+            });
+
+            if (!updateResult.Success)
+            {
+                Snackbar.Add(updateResult.Error?.Message ?? "Failed to update user.", Severity.Error);
+                _isSaving = false;
+                return;
+            }
+
+            var rolesResult = await ApiClient.AssignUserRolesAsync(_editingId.Value, new AssignRolesRequest
+            {
+                RoleIds = _selectedRoleIds.ToList(),
+            });
+
+            if (rolesResult.Success)
+            {
+                Snackbar.Add("User saved.", Severity.Success);
+                _showForm = false;
+                await LoadAsync();
+            }
+            else
+            {
+                Snackbar.Add(rolesResult.Error?.Message ?? "Failed to update roles.", Severity.Error);
+            }
+        }
+
+        _isSaving = false;
+    }
+
+    private async Task ResetPasswordAsync()
+    {
+        if (_editingId is null || string.IsNullOrWhiteSpace(_resetPassword))
+        {
+            Snackbar.Add("Enter a new password first.", Severity.Warning);
+            return;
+        }
+
+        var result = await ApiClient.ResetUserPasswordAsync(_editingId.Value, new ResetPasswordRequest { NewPassword = _resetPassword });
+        if (result.Success)
+        {
+            Snackbar.Add("Password reset.", Severity.Success);
+            _resetPassword = string.Empty;
+        }
+        else
+        {
+            Snackbar.Add(result.Error?.Message ?? "Failed to reset password.", Severity.Error);
+        }
+    }
+
+    private async Task ActivateAsync(long id)
+    {
+        var result = await ApiClient.ActivateUserAsync(id);
+        if (result.Success)
+        {
+            Snackbar.Add("User activated.", Severity.Success);
+            await LoadAsync();
+        }
+        else
+        {
+            Snackbar.Add(result.Error?.Message ?? "Failed to activate user.", Severity.Error);
+        }
+    }
+
+    private async Task DeactivateAsync(long id)
+    {
+        var result = await ApiClient.DeactivateUserAsync(id);
+        if (result.Success)
+        {
+            Snackbar.Add("User deactivated.", Severity.Success);
+            await LoadAsync();
+        }
+        else
+        {
+            Snackbar.Add(result.Error?.Message ?? "Failed to deactivate user.", Severity.Error);
+        }
+    }
+}

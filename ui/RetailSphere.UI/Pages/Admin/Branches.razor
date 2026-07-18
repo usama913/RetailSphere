@@ -1,0 +1,239 @@
+@page "/admin/branches"
+@attribute [Authorize]
+@inject IApiClient ApiClient
+@inject AuthenticationStateProvider AuthStateProvider
+@inject ISnackbar Snackbar
+
+<PageTitle>Branches - RetailSphere</PageTitle>
+
+@if (!_canView)
+{
+    <MudAlert Severity="Severity.Warning">You don't have permission to view branches.</MudAlert>
+}
+else
+{
+
+<MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween" Class="mb-4">
+    <div>
+        <MudText Typo="Typo.h5">Branches</MudText>
+        <MudText Typo="Typo.body2" Style="color: var(--mud-palette-text-secondary);">Physical stores this account operates.</MudText>
+    </div>
+    @if (_canCreate)
+    {
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" OnClick="ShowCreateForm">
+            New Branch
+        </MudButton>
+    }
+</MudStack>
+
+@if (_showForm)
+{
+    <MudPaper Class="pa-4 mb-4" Elevation="1">
+        <MudText Typo="Typo.h6" Class="mb-3">@(_editingId is null ? "New Branch" : "Edit Branch")</MudText>
+        <MudGrid>
+            <MudItem xs="12" sm="6">
+                <MudTextField @bind-Value="_formName" Label="Name" Variant="Variant.Outlined" Required="true" />
+            </MudItem>
+            <MudItem xs="12" sm="6">
+                <MudTextField @bind-Value="_formCode" Label="Code" Variant="Variant.Outlined" Required="true" Disabled="@(_editingId is not null)" />
+            </MudItem>
+            <MudItem xs="12" sm="6">
+                <MudTextField @bind-Value="_formAddress" Label="Address" Variant="Variant.Outlined" />
+            </MudItem>
+            <MudItem xs="12" sm="6">
+                <MudTextField @bind-Value="_formCity" Label="City" Variant="Variant.Outlined" />
+            </MudItem>
+            <MudItem xs="12" sm="6">
+                <MudTextField @bind-Value="_formCurrencyCode" Label="Currency Code" Variant="Variant.Outlined" Required="true" MaxLength="3" />
+            </MudItem>
+        </MudGrid>
+        <MudStack Row="true" Class="mt-4" Spacing="2">
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="SaveAsync" Disabled="@_isSaving">Save</MudButton>
+            <MudButton Variant="Variant.Text" OnClick="CancelForm">Cancel</MudButton>
+        </MudStack>
+    </MudPaper>
+}
+
+<MudTable Items="@_branches" Hover="true" Dense="true" Loading="@_isLoading">
+    <HeaderContent>
+        <MudTh>Name</MudTh>
+        <MudTh>Code</MudTh>
+        <MudTh>City</MudTh>
+        <MudTh>Currency</MudTh>
+        <MudTh>Status</MudTh>
+        <MudTh>Actions</MudTh>
+    </HeaderContent>
+    <RowTemplate>
+        <MudTd DataLabel="Name">@context.Name</MudTd>
+        <MudTd DataLabel="Code">@context.Code</MudTd>
+        <MudTd DataLabel="City">@context.City</MudTd>
+        <MudTd DataLabel="Currency">@context.CurrencyCode</MudTd>
+        <MudTd DataLabel="Status">
+            <MudChip T="string" Size="Size.Small" Color="@(context.IsActive ? Color.Success : Color.Default)">
+                @(context.IsActive ? "Active" : "Inactive")
+            </MudChip>
+        </MudTd>
+        <MudTd DataLabel="Actions">
+            @if (_canEdit)
+            {
+                <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small" OnClick="@(() => ShowEditForm(context))" />
+            }
+            @if (_canDeactivate)
+            {
+                @if (context.IsActive)
+                {
+                    <MudIconButton Icon="@Icons.Material.Filled.PauseCircle" Size="Size.Small" OnClick="@(() => DeactivateAsync(context.Id))" />
+                }
+                else
+                {
+                    <MudIconButton Icon="@Icons.Material.Filled.PlayCircle" Size="Size.Small" OnClick="@(() => ActivateAsync(context.Id))" />
+                }
+            }
+        </MudTd>
+    </RowTemplate>
+</MudTable>
+
+}
+
+@code {
+    private IReadOnlyList<BranchDto> _branches = [];
+    private HashSet<string> _permissions = [];
+    private bool _isLoading = true;
+    private bool _isSaving;
+    private bool _showForm;
+    private long? _editingId;
+
+    private string _formName = string.Empty;
+    private string _formCode = string.Empty;
+    private string? _formAddress;
+    private string? _formCity;
+    private string _formCurrencyCode = "PKR";
+
+    private bool _canView => _permissions.Contains("admin.branches.view");
+    private bool _canCreate => _permissions.Contains("admin.branches.create");
+    private bool _canEdit => _permissions.Contains("admin.branches.edit");
+    private bool _canDeactivate => _permissions.Contains("admin.branches.deactivate");
+
+    protected override async Task OnInitializedAsync()
+    {
+        var state = await AuthStateProvider.GetAuthenticationStateAsync();
+        _permissions = state.User.FindAll("permission").Select(c => c.Value).ToHashSet();
+
+        if (_canView)
+        {
+            await LoadAsync();
+        }
+        else
+        {
+            _isLoading = false;
+        }
+    }
+
+    private async Task LoadAsync()
+    {
+        _isLoading = true;
+        var result = await ApiClient.GetBranchesAsync(includeInactive: true);
+        if (result.Success && result.Data is not null)
+        {
+            _branches = result.Data;
+        }
+        else
+        {
+            Snackbar.Add(result.Error?.Message ?? "Failed to load branches.", Severity.Error);
+        }
+        _isLoading = false;
+    }
+
+    private void ShowCreateForm()
+    {
+        _editingId = null;
+        _formName = string.Empty;
+        _formCode = string.Empty;
+        _formAddress = null;
+        _formCity = null;
+        _formCurrencyCode = "PKR";
+        _showForm = true;
+    }
+
+    private void ShowEditForm(BranchDto branch)
+    {
+        _editingId = branch.Id;
+        _formName = branch.Name;
+        _formCode = branch.Code;
+        _formAddress = branch.Address;
+        _formCity = branch.City;
+        _formCurrencyCode = branch.CurrencyCode;
+        _showForm = true;
+    }
+
+    private void CancelForm() => _showForm = false;
+
+    private async Task SaveAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_formName) || string.IsNullOrWhiteSpace(_formCurrencyCode))
+        {
+            Snackbar.Add("Name and currency code are required.", Severity.Warning);
+            return;
+        }
+
+        _isSaving = true;
+
+        var result = _editingId is null
+            ? await ApiClient.CreateBranchAsync(new CreateBranchRequest
+            {
+                Name = _formName,
+                Code = _formCode,
+                Address = _formAddress,
+                City = _formCity,
+                CurrencyCode = _formCurrencyCode,
+            })
+            : await ApiClient.UpdateBranchAsync(_editingId.Value, new UpdateBranchRequest
+            {
+                Name = _formName,
+                Address = _formAddress,
+                City = _formCity,
+                CurrencyCode = _formCurrencyCode,
+            });
+
+        if (result.Success)
+        {
+            Snackbar.Add("Branch saved.", Severity.Success);
+            _showForm = false;
+            await LoadAsync();
+        }
+        else
+        {
+            Snackbar.Add(result.Error?.Message ?? "Failed to save branch.", Severity.Error);
+        }
+
+        _isSaving = false;
+    }
+
+    private async Task ActivateAsync(long id)
+    {
+        var result = await ApiClient.ActivateBranchAsync(id);
+        if (result.Success)
+        {
+            Snackbar.Add("Branch activated.", Severity.Success);
+            await LoadAsync();
+        }
+        else
+        {
+            Snackbar.Add(result.Error?.Message ?? "Failed to activate branch.", Severity.Error);
+        }
+    }
+
+    private async Task DeactivateAsync(long id)
+    {
+        var result = await ApiClient.DeactivateBranchAsync(id);
+        if (result.Success)
+        {
+            Snackbar.Add("Branch deactivated.", Severity.Success);
+            await LoadAsync();
+        }
+        else
+        {
+            Snackbar.Add(result.Error?.Message ?? "Failed to deactivate branch.", Severity.Error);
+        }
+    }
+}

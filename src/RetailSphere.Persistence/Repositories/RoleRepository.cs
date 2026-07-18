@@ -21,7 +21,17 @@ public sealed class RoleRepository(RetailSphereDbContext dbContext) : IRoleRepos
             .ToListAsync(cancellationToken);
     }
 
+    public async Task<IReadOnlyList<Permission>> GetAllPermissionsAsync(CancellationToken cancellationToken = default) =>
+        await dbContext.Permissions
+            .OrderBy(p => p.Module)
+            .ThenBy(p => p.DisplayName)
+            .ToListAsync(cancellationToken);
+
     public void Add(Role role) => dbContext.Roles.Add(role);
 
     public void Update(Role role) => dbContext.Roles.Update(role);
+
+    // A hard Remove() here is converted into a soft delete (IsDeleted = true) by
+    // AuditableEntitySaveChangesInterceptor, since Role implements ISoftDeletable.
+    public void Remove(Role role) => dbContext.Roles.Remove(role);
 }

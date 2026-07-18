@@ -46,6 +46,19 @@ public sealed class Role : AggregateRoot<long>, IAuditableEntity, ISoftDeletable
         return Result.Success(role);
     }
 
+    public Result UpdateDetails(string name, string? description)
+    {
+        if (IsSystemRole)
+            return Result.Failure(Error.Failure("Role.SystemRoleImmutable", "System roles cannot be modified."));
+
+        if (string.IsNullOrWhiteSpace(name))
+            return Result.Failure(Error.Validation("Role.NameRequired", "Role name is required."));
+
+        Name = name.Trim();
+        Description = description;
+        return Result.Success();
+    }
+
     public Result GrantPermission(long permissionId)
     {
         if (_permissionIds.Contains(permissionId))

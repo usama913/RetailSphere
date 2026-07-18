@@ -14,6 +14,15 @@ public interface IUserRepository
 
     Task<bool> EmailExistsAsync(string email, CancellationToken cancellationToken = default);
 
+    /// <summary>Paged, optionally filtered listing for the Admin &gt; Users screen (Phase 1).</summary>
+    Task<(IReadOnlyList<User> Items, long TotalCount)> SearchAsync(
+        int page,
+        int pageSize,
+        string? search,
+        long? branchId,
+        bool? isActive,
+        CancellationToken cancellationToken = default);
+
     void Add(User user);
 
     void Update(User user);

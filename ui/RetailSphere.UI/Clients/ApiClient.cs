@@ -19,6 +19,25 @@ public sealed partial class ApiClient(HttpClient httpClient) : IApiClient
         return await ReadEnvelopeAsync<TResponse>(response, cancellationToken);
     }
 
+    private async Task<ApiResponse<TResponse>> PutAsync<TRequest, TResponse>(string relativeUrl, TRequest body, CancellationToken cancellationToken = default)
+    {
+        var response = await httpClient.PutAsJsonAsync($"{BasePath}/{relativeUrl}", body, cancellationToken);
+        return await ReadEnvelopeAsync<TResponse>(response, cancellationToken);
+    }
+
+    /// <summary>For POST endpoints that don't need a request body (e.g. activate/deactivate).</summary>
+    private async Task<ApiResponse<TResponse>> PostAsync<TResponse>(string relativeUrl, CancellationToken cancellationToken = default)
+    {
+        var response = await httpClient.PostAsync($"{BasePath}/{relativeUrl}", content: null, cancellationToken);
+        return await ReadEnvelopeAsync<TResponse>(response, cancellationToken);
+    }
+
+    private async Task<ApiResponse<TResponse>> DeleteAsync<TResponse>(string relativeUrl, CancellationToken cancellationToken = default)
+    {
+        var response = await httpClient.DeleteAsync($"{BasePath}/{relativeUrl}", cancellationToken);
+        return await ReadEnvelopeAsync<TResponse>(response, cancellationToken);
+    }
+
     private static async Task<ApiResponse<TResponse>> ReadEnvelopeAsync<TResponse>(HttpResponseMessage response, CancellationToken cancellationToken)
     {
         var envelope = await response.Content.ReadFromJsonAsync<ApiResponse<TResponse>>(cancellationToken);

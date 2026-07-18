@@ -9,6 +9,8 @@ public interface ICurrentUserService
 {
     long? UserId { get; }
 
+    string? Email { get; }
+
     long? BranchId { get; }
 
     IReadOnlyCollection<string> Permissions { get; }

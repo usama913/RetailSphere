@@ -57,6 +57,18 @@ public sealed class Branch : AggregateRoot<long>, IAuditableEntity, ISoftDeletab
         });
     }
 
+    public Result UpdateDetails(string name, string? address, string? city, string currencyCode)
+    {
+        if (string.IsNullOrWhiteSpace(name))
+            return Result.Failure(Error.Validation("Branch.NameRequired", "Branch name is required."));
+
+        Name = name.Trim();
+        Address = address;
+        City = city;
+        CurrencyCode = currencyCode;
+        return Result.Success();
+    }
+
     public void Deactivate() => IsActive = false;
 
     public void Activate() => IsActive = true;

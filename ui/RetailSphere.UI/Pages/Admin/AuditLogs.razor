@@ -1,0 +1,141 @@
+@page "/admin/audit-logs"
+@attribute [Authorize]
+@inject IApiClient ApiClient
+@inject AuthenticationStateProvider AuthStateProvider
+@inject ISnackbar Snackbar
+
+<PageTitle>Audit Logs - RetailSphere</PageTitle>
+
+@if (!_canView)
+{
+    <MudAlert Severity="Severity.Warning">You don't have permission to view audit logs.</MudAlert>
+}
+else
+{
+
+<MudText Typo="Typo.h5" Class="mb-1">Audit Logs</MudText>
+<MudText Typo="Typo.body2" Style="color: var(--mud-palette-text-secondary);" Class="mb-4">
+    A trail of administrative actions across Users, Roles, and Branches.
+</MudText>
+
+<MudGrid Class="mb-4">
+    <MudItem xs="12" sm="6" md="3">
+        <MudSelect T="string" @bind-Value="_entityType" Label="Entity Type" Variant="Variant.Outlined">
+            <MudSelectItem T="string" Value="@((string)null!)">All</MudSelectItem>
+            <MudSelectItem T="string" Value="@("User")">User</MudSelectItem>
+            <MudSelectItem T="string" Value="@("Role")">Role</MudSelectItem>
+            <MudSelectItem T="string" Value="@("Branch")">Branch</MudSelectItem>
+        </MudSelect>
+    </MudItem>
+    <MudItem xs="12" sm="6" md="3">
+        <MudTextField @bind-Value="_action" Label="Action" Variant="Variant.Outlined" Placeholder="e.g. Created, Updated" />
+    </MudItem>
+    <MudItem xs="12" sm="6" md="3">
+        <MudDatePicker @bind-Date="_fromDate" Label="From" Variant="Variant.Outlined" />
+    </MudItem>
+    <MudItem xs="12" sm="6" md="3">
+        <MudDatePicker @bind-Date="_toDate" Label="To" Variant="Variant.Outlined" />
+    </MudItem>
+</MudGrid>
+
+<MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="ApplyFiltersAsync" Class="mb-4">Apply Filters</MudButton>
+
+<MudTable Items="@_logs" Hover="true" Dense="true" Loading="@_isLoading">
+    <HeaderContent>
+        <MudTh>Timestamp</MudTh>
+        <MudTh>User</MudTh>
+        <MudTh>Entity</MudTh>
+        <MudTh>Action</MudTh>
+        <MudTh>Details</MudTh>
+    </HeaderContent>
+    <RowTemplate>
+        <MudTd DataLabel="Timestamp">@context.TimestampUtc.ToLocalTime().ToString("g")</MudTd>
+        <MudTd DataLabel="User">@(context.UserEmail ?? "System")</MudTd>
+        <MudTd DataLabel="Entity">@context.EntityType #@context.EntityId</MudTd>
+        <MudTd DataLabel="Action">
+            <MudChip T="string" Size="Size.Small">@context.Action</MudChip>
+        </MudTd>
+        <MudTd DataLabel="Details">@context.Details</MudTd>
+    </RowTemplate>
+</MudTable>
+
+<MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.Center" Class="mt-4" Spacing="4">
+    <MudIconButton Icon="@Icons.Material.Filled.ChevronLeft" Disabled="@(_page <= 1)" OnClick="@(() => ChangePageAsync(_page - 1))" />
+    <MudText Typo="Typo.body2">Page @_page of @_totalPages</MudText>
+    <MudIconButton Icon="@Icons.Material.Filled.ChevronRight" Disabled="@(_page >= _totalPages)" OnClick="@(() => ChangePageAsync(_page + 1))" />
+</MudStack>
+
+}
+
+@code {
+    private const int PageSize = 25;
+
+    private IReadOnlyList<AuditLogDto> _logs = [];
+    private HashSet<string> _permissions = [];
+
+    private bool _isLoading = true;
+    private int _page = 1;
+    private long _totalCount;
+    private int _totalPages = 1;
+
+    private string? _entityType;
+    private string? _action;
+    private DateTime? _fromDate;
+    private DateTime? _toDate;
+
+    private bool _canView => _permissions.Contains("admin.audit.view");
+
+    protected override async Task OnInitializedAsync()
+    {
+        var state = await AuthStateProvider.GetAuthenticationStateAsync();
+        _permissions = state.User.FindAll("permission").Select(c => c.Value).ToHashSet();
+
+        if (_canView)
+        {
+            await LoadAsync();
+        }
+        else
+        {
+            _isLoading = false;
+        }
+    }
+
+    private async Task LoadAsync()
+    {
+        _isLoading = true;
+
+        var result = await ApiClient.GetAuditLogsAsync(
+            _page,
+            PageSize,
+            _entityType,
+            string.IsNullOrWhiteSpace(_action) ? null : _action,
+            userId: null,
+            fromUtc: _fromDate,
+            toUtc: _toDate?.AddDays(1).AddTicks(-1));
+
+        if (result.Success && result.Data is not null)
+        {
+            _logs = result.Data.Data;
+            _totalCount = result.Data.TotalCount;
+            _totalPages = Math.Max(1, (int)Math.Ceiling(_totalCount / (double)PageSize));
+        }
+        else
+        {
+            Snackbar.Add(result.Error?.Message ?? "Failed to load audit logs.", Severity.Error);
+        }
+
+        _isLoading = false;
+    }
+
+    private async Task ApplyFiltersAsync()
+    {
+        _page = 1;
+        await LoadAsync();
+    }
+
+    private async Task ChangePageAsync(int newPage)
+    {
+        _page = newPage;
+        await LoadAsync();
+    }
+}

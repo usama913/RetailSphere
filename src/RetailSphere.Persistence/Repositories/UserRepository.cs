@@ -29,6 +29,43 @@ public sealed class UserRepository(RetailSphereDbContext dbContext) : IUserRepos
         return dbContext.Users.AnyAsync(u => u.NormalizedEmail == normalized, cancellationToken);
     }
 
+    public async Task<(IReadOnlyList<User> Items, long TotalCount)> SearchAsync(
+        int page,
+        int pageSize,
+        string? search,
+        long? branchId,
+        bool? isActive,
+        CancellationToken cancellationToken = default)
+    {
+        var query = dbContext.Users.AsQueryable();
+
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var term = search.Trim().ToLowerInvariant();
+            query = query.Where(u =>
+                u.NormalizedEmail.Contains(term) ||
+                u.FirstName.ToLower().Contains(term) ||
+                u.LastName.ToLower().Contains(term));
+        }
+
+        if (branchId.HasValue)
+            query = query.Where(u => u.BranchId == branchId.Value);
+
+        if (isActive.HasValue)
+            query = query.Where(u => u.IsActive == isActive.Value);
+
+        query = query.OrderBy(u => u.FirstName).ThenBy(u => u.LastName);
+
+        var totalCount = await query.LongCountAsync(cancellationToken);
+
+        var items = await query
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .ToListAsync(cancellationToken);
+
+        return (items, totalCount);
+    }
+
     // Mirrors Email.Create's own normalization (trim + invariant lowercase) so a
     // lookup always matches however the value was normalized when it was stored.
     private static string Normalize(string email) => email.Trim().ToLowerInvariant();

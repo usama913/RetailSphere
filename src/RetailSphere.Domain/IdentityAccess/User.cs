@@ -77,6 +77,20 @@ public sealed class User : AggregateRoot<long>, IAuditableEntity, ISoftDeletable
         return Result.Success(user);
     }
 
+    public Result UpdateProfile(string firstName, string lastName, long? branchId)
+    {
+        if (string.IsNullOrWhiteSpace(firstName))
+            return Result.Failure(Error.Validation("User.FirstNameRequired", "First name is required."));
+
+        if (string.IsNullOrWhiteSpace(lastName))
+            return Result.Failure(Error.Validation("User.LastNameRequired", "Last name is required."));
+
+        FirstName = firstName.Trim();
+        LastName = lastName.Trim();
+        BranchId = branchId;
+        return Result.Success();
+    }
+
     public void ChangePassword(HashedPassword newPassword)
     {
         Password = newPassword;

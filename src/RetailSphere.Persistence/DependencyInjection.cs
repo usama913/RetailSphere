@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using RetailSphere.Application.Common.Interfaces;
+using RetailSphere.Domain.Auditing;
 using RetailSphere.Domain.IdentityAccess;
 using RetailSphere.Domain.Organization;
 using RetailSphere.Persistence.Interceptors;
@@ -37,6 +38,7 @@ public static class DependencyInjection
         services.AddScoped<IUserRepository, UserRepository>();
         services.AddScoped<IRoleRepository, RoleRepository>();
         services.AddScoped<IBranchRepository, BranchRepository>();
+        services.AddScoped<IAuditLogRepository, AuditLogRepository>();
 
         return services;
     }

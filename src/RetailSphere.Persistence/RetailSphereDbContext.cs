@@ -2,6 +2,7 @@ using System.Reflection;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 using RetailSphere.Application.Common.Interfaces;
+using RetailSphere.Domain.Auditing;
 using RetailSphere.Domain.IdentityAccess;
 using RetailSphere.Domain.Organization;
 using RetailSphere.SharedKernel;
@@ -18,6 +19,8 @@ public sealed class RetailSphereDbContext(DbContextOptions<RetailSphereDbContext
     public DbSet<Permission> Permissions => Set<Permission>();
 
     public DbSet<Branch> Branches => Set<Branch>();
+
+    public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
