@@ -19,6 +19,9 @@ public sealed class UpdateProductAttributeCommandHandler(
         if (attribute is null)
             return Result.Failure<ProductAttributeDto>(Error.NotFound("ProductAttribute.NotFound", "Attribute not found."));
 
+        if (await productAttributeRepository.NameExistsAsync(request.Name.Trim(), request.Id, cancellationToken))
+            return Result.Failure<ProductAttributeDto>(Error.Conflict("ProductAttribute.DuplicateName", "An attribute with this name already exists."));
+
         var renameResult = attribute.Rename(request.Name);
         if (renameResult.IsFailure)
             return Result.Failure<ProductAttributeDto>(renameResult.Error);

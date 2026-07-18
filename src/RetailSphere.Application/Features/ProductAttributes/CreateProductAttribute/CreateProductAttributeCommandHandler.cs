@@ -15,6 +15,9 @@ public sealed class CreateProductAttributeCommandHandler(
 {
     public async Task<Result<ProductAttributeDto>> Handle(CreateProductAttributeCommand request, CancellationToken cancellationToken)
     {
+        if (await productAttributeRepository.NameExistsAsync(request.Name.Trim(), cancellationToken: cancellationToken))
+            return Result.Failure<ProductAttributeDto>(Error.Conflict("ProductAttribute.DuplicateName", "An attribute with this name already exists."));
+
         var attributeResult = ProductAttribute.Create(request.Name);
         if (attributeResult.IsFailure)
             return Result.Failure<ProductAttributeDto>(attributeResult.Error);

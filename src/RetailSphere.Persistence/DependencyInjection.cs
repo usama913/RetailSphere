@@ -5,6 +5,7 @@ using RetailSphere.Application.Common.Interfaces;
 using RetailSphere.Domain.Auditing;
 using RetailSphere.Domain.Catalog;
 using RetailSphere.Domain.IdentityAccess;
+using RetailSphere.Domain.Inventory;
 using RetailSphere.Domain.Organization;
 using RetailSphere.Domain.Purchasing;
 using RetailSphere.Persistence.Interceptors;
@@ -49,6 +50,8 @@ public static class DependencyInjection
         services.AddScoped<IUnitRepository, UnitRepository>();
         services.AddScoped<ISupplierRepository, SupplierRepository>();
         services.AddScoped<IPurchaseOrderRepository, PurchaseOrderRepository>();
+        services.AddScoped<IStockItemRepository, StockItemRepository>();
+        services.AddScoped<IStockTransferRepository, StockTransferRepository>();
 
         return services;
     }

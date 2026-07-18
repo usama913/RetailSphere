@@ -19,6 +19,9 @@ public sealed class UpdateUnitCommandHandler(
         if (unit is null)
             return Result.Failure<UnitDto>(Error.NotFound("Unit.NotFound", "Unit not found."));
 
+        if (await unitRepository.NameExistsAsync(request.Name.Trim(), request.Id, cancellationToken))
+            return Result.Failure<UnitDto>(Error.Conflict("Unit.DuplicateName", "A unit with this name already exists."));
+
         var updateResult = unit.UpdateDetails(request.Name, request.ShortCode, request.AllowDecimal);
         if (updateResult.IsFailure)
             return Result.Failure<UnitDto>(updateResult.Error);

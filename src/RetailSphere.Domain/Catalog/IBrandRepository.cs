@@ -6,6 +6,9 @@ public interface IBrandRepository
 
     Task<IReadOnlyList<Brand>> GetAllAsync(bool includeInactive = false, CancellationToken cancellationToken = default);
 
+    /// <summary>Ignores the soft-delete filter — see BrandRepository.NameExistsAsync.</summary>
+    Task<bool> NameExistsAsync(string name, long? excludeId = null, CancellationToken cancellationToken = default);
+
     void Add(Brand brand);
 
     void Update(Brand brand);

@@ -19,6 +19,9 @@ public sealed class UpdateRoleCommandHandler(
         if (role is null)
             return Result.Failure<RoleDto>(Error.NotFound("Role.NotFound", "Role not found."));
 
+        if (await roleRepository.NameExistsAsync(request.Name.Trim(), request.Id, cancellationToken))
+            return Result.Failure<RoleDto>(Error.Conflict("Role.DuplicateName", "A role with this name already exists."));
+
         var updateResult = role.UpdateDetails(request.Name, request.Description);
         if (updateResult.IsFailure)
             return Result.Failure<RoleDto>(updateResult.Error);

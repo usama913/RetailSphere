@@ -54,6 +54,18 @@ public sealed class ProductRepository(RetailSphereDbContext dbContext) : IProduc
     public Task<bool> SkuExistsAsync(string sku, CancellationToken cancellationToken = default) =>
         dbContext.Set<ProductVariant>().AnyAsync(v => v.Sku == sku, cancellationToken);
 
+    public async Task<IReadOnlyList<Product>> GetByVariantIdsAsync(IEnumerable<long> variantIds, CancellationToken cancellationToken = default)
+    {
+        var ids = variantIds.Distinct().ToList();
+        if (ids.Count == 0)
+            return [];
+
+        return await dbContext.Products
+            .Include(p => p.Variants)
+            .Where(p => p.Variants.Any(v => ids.Contains(v.Id)))
+            .ToListAsync(cancellationToken);
+    }
+
     public void Add(Product product) => dbContext.Products.Add(product);
 
     public void Update(Product product) => dbContext.Products.Update(product);

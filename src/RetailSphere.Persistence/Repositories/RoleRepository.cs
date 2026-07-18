@@ -27,6 +27,15 @@ public sealed class RoleRepository(RetailSphereDbContext dbContext) : IRoleRepos
             .ThenBy(p => p.DisplayName)
             .ToListAsync(cancellationToken);
 
+    /// <summary>
+    /// Ignores the soft-delete query filter — see PurchaseOrderRepository.PoNumberExistsAsync
+    /// for why: Roles.HasQueryFilter(r => !r.IsDeleted) would otherwise let a
+    /// soft-deleted role's name look free forever, while Name's unique index still
+    /// rejects the physical duplicate on insert/update.
+    /// </summary>
+    public Task<bool> NameExistsAsync(string name, long? excludeId = null, CancellationToken cancellationToken = default) =>
+        dbContext.Roles.IgnoreQueryFilters().AnyAsync(r => r.Name == name && (excludeId == null || r.Id != excludeId.Value), cancellationToken);
+
     public void Add(Role role) => dbContext.Roles.Add(role);
 
     public void Update(Role role) => dbContext.Roles.Update(role);

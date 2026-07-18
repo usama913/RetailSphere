@@ -15,6 +15,9 @@ public sealed class CreateRoleCommandHandler(
 {
     public async Task<Result<RoleDto>> Handle(CreateRoleCommand request, CancellationToken cancellationToken)
     {
+        if (await roleRepository.NameExistsAsync(request.Name.Trim(), cancellationToken: cancellationToken))
+            return Result.Failure<RoleDto>(Error.Conflict("Role.DuplicateName", "A role with this name already exists."));
+
         var roleResult = Role.Create(request.Name, request.Description);
         if (roleResult.IsFailure)
             return Result.Failure<RoleDto>(roleResult.Error);

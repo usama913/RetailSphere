@@ -12,10 +12,12 @@ namespace RetailSphere.Domain.Purchasing;
 /// avoids introducing an unverified EF enum-conversion mapping with no local
 /// compiler to check it against.
 ///
-/// Inventory integration point: ReceiveLine only records QuantityReceived on the
-/// line today. Once the Inventory module exists, its stock-increment logic should
-/// hook in here (or listen for a domain event raised from ReceiveLine) — deliberately
-/// out of scope for this pass, called out explicitly rather than silently skipped.
+/// ReceiveLine only records QuantityReceived on the line itself — it does not touch
+/// stock. ReceivePurchaseOrderLineCommandHandler is the actual Inventory integration
+/// point: after calling ReceiveLine, it separately gets-or-creates the StockItem for
+/// (line.ProductVariantId, BranchId) and adjusts it. Kept as two steps rather than
+/// having this method reach into Inventory directly, since PurchaseOrder shouldn't
+/// depend on another aggregate's repository.
 /// </summary>
 public sealed class PurchaseOrder : AggregateRoot<long>, IAuditableEntity, ISoftDeletable
 {

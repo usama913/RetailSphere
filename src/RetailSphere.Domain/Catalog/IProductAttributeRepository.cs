@@ -6,6 +6,9 @@ public interface IProductAttributeRepository
 
     Task<IReadOnlyList<ProductAttribute>> GetAllAsync(CancellationToken cancellationToken = default);
 
+    /// <summary>Ignores the soft-delete filter — see ProductAttributeRepository.NameExistsAsync.</summary>
+    Task<bool> NameExistsAsync(string name, long? excludeId = null, CancellationToken cancellationToken = default);
+
     void Add(ProductAttribute attribute);
 
     void Update(ProductAttribute attribute);

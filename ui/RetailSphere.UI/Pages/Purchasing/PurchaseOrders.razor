@@ -75,6 +75,46 @@ else
             }
         </MudStack>
 
+        @if (_isDraftOrNew)
+        {
+            <MudStack Row="true" Justify="Justify.FlexEnd" Class="mb-1">
+                <MudButton Variant="Variant.Text" Color="Color.Primary" Size="Size.Small" StartIcon="@Icons.Material.Filled.Add" OnClick="ShowQuickAddSupplier">
+                    New supplier
+                </MudButton>
+            </MudStack>
+        }
+
+        @if (_showQuickAddSupplier)
+        {
+            <MudPaper Class="pa-3 mb-3" Elevation="2" Style="border: 1px solid var(--mud-palette-lines-default);">
+                <MudText Typo="Typo.subtitle2" Class="mb-2">New Supplier</MudText>
+                <MudGrid>
+                    <MudItem xs="12" sm="6" md="4">
+                        <MudTextField @bind-Value="_qasName" Label="Name" Variant="Variant.Outlined" Margin="Margin.Dense" Required="true" />
+                    </MudItem>
+                    <MudItem xs="12" sm="6" md="4">
+                        <MudTextField @bind-Value="_qasContactPerson" Label="Contact person (optional)" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                    </MudItem>
+                    <MudItem xs="12" sm="6" md="4">
+                        <MudTextField @bind-Value="_qasPhone" Label="Phone (optional)" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                    </MudItem>
+                    <MudItem xs="12" sm="6" md="4">
+                        <MudTextField @bind-Value="_qasEmail" Label="Email (optional)" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                    </MudItem>
+                    <MudItem xs="12" sm="6" md="4">
+                        <MudTextField @bind-Value="_qasTaxNumber" Label="Tax number (optional)" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                    </MudItem>
+                    <MudItem xs="12" sm="6" md="4">
+                        <MudTextField @bind-Value="_qasAddress" Label="Address (optional)" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                    </MudItem>
+                </MudGrid>
+                <MudStack Row="true" Class="mt-2" Spacing="2">
+                    <MudButton Variant="Variant.Filled" Color="Color.Primary" Size="Size.Small" OnClick="CreateQuickSupplierAsync" Disabled="@_isSavingQuickSupplier">Create &amp; use</MudButton>
+                    <MudButton Variant="Variant.Text" Size="Size.Small" OnClick="@(() => _showQuickAddSupplier = false)">Cancel</MudButton>
+                </MudStack>
+            </MudPaper>
+        }
+
         <MudGrid>
             <MudItem xs="12" sm="6" md="3">
                 <MudSelect T="long?" @bind-Value="_formSupplierId" Label="Supplier" Variant="Variant.Outlined" Disabled="@(!_isDraftOrNew)">
@@ -183,7 +223,7 @@ else
                             <MudSelectItem T="long?" Value="@((long?)null)">— Select —</MudSelectItem>
                             @foreach (var variant in GetVariantsForSelectedProduct())
                             {
-                                <MudSelectItem T="long?" Value="@((long?)variant.Id)">@variant.Sku</MudSelectItem>
+                                <MudSelectItem T="long?" Value="@((long?)variant.Id)">@GetVariantLabel(variant)</MudSelectItem>
                             }
                         </MudSelect>
                     </MudItem>
@@ -308,6 +348,7 @@ else
     private IReadOnlyList<CategoryDto> _categories = [];
     private IReadOnlyList<BrandDto> _brands = [];
     private IReadOnlyList<UnitDto> _units = [];
+    private IReadOnlyList<ProductAttributeDto> _attributes = [];
     private HashSet<string> _permissions = [];
     private readonly Dictionary<long, decimal> _receiveDrafts = new();
 
@@ -337,6 +378,15 @@ else
     private long? _lineVariantId;
     private decimal _lineQuantity;
     private decimal _lineUnitCost;
+
+    private bool _showQuickAddSupplier;
+    private bool _isSavingQuickSupplier;
+    private string _qasName = string.Empty;
+    private string? _qasContactPerson;
+    private string? _qasEmail;
+    private string? _qasPhone;
+    private string? _qasAddress;
+    private string? _qasTaxNumber;
 
     private bool _showQuickAddProduct;
     private bool _isSavingQuickProduct;
@@ -386,6 +436,10 @@ else
             var unitsResult = await ApiClient.GetUnitsAsync(includeInactive: false);
             if (unitsResult.Success && unitsResult.Data is not null)
                 _units = unitsResult.Data;
+
+            var attributesResult = await ApiClient.GetProductAttributesAsync();
+            if (attributesResult.Success && attributesResult.Data is not null)
+                _attributes = attributesResult.Data;
 
             await LoadAsync();
         }
@@ -468,6 +522,27 @@ else
         return product?.Variants ?? [];
     }
 
+    /// <summary>SKU plus its attribute values (e.g. "P5-V07 — Size: 39") so variants aren't just an opaque code in the dropdown.</summary>
+    private string GetVariantLabel(ProductVariantDto variant)
+    {
+        if (variant.AttributeValueIds.Count == 0)
+            return variant.Sku;
+
+        var parts = new List<string>();
+        foreach (var attribute in _attributes)
+        {
+            var matched = attribute.Values
+                .Where(v => variant.AttributeValueIds.Contains(v.Id))
+                .Select(v => v.Value)
+                .ToList();
+
+            if (matched.Count > 0)
+                parts.Add($"{attribute.Name}: {string.Join(", ", matched)}");
+        }
+
+        return parts.Count > 0 ? $"{variant.Sku} — {string.Join(" · ", parts)}" : variant.Sku;
+    }
+
     private decimal GetReceiveDraft(long lineId) => _receiveDrafts.TryGetValue(lineId, out var value) ? value : 0;
 
     private void SetReceiveDraft(long lineId, decimal value) => _receiveDrafts[lineId] = value;
@@ -519,6 +594,52 @@ else
     }
 
     private void CloseForm() => _showForm = false;
+
+    private void ShowQuickAddSupplier()
+    {
+        _qasName = string.Empty;
+        _qasContactPerson = null;
+        _qasEmail = null;
+        _qasPhone = null;
+        _qasAddress = null;
+        _qasTaxNumber = null;
+        _showQuickAddSupplier = true;
+    }
+
+    private async Task CreateQuickSupplierAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_qasName))
+        {
+            Snackbar.Add("Supplier name is required.", Severity.Warning);
+            return;
+        }
+
+        _isSavingQuickSupplier = true;
+
+        var result = await ApiClient.CreateSupplierAsync(new CreateSupplierRequest
+        {
+            Name = _qasName,
+            ContactPerson = _qasContactPerson,
+            Email = _qasEmail,
+            Phone = _qasPhone,
+            Address = _qasAddress,
+            TaxNumber = _qasTaxNumber,
+        });
+
+        if (result.Success && result.Data is not null)
+        {
+            _suppliers = [.. _suppliers, result.Data];
+            _formSupplierId = result.Data.Id;
+            Snackbar.Add("Supplier created and selected.", Severity.Success);
+            _showQuickAddSupplier = false;
+        }
+        else
+        {
+            Snackbar.Add(result.Error?.Message ?? "Failed to create supplier.", Severity.Error);
+        }
+
+        _isSavingQuickSupplier = false;
+    }
 
     private void ShowQuickAddProduct()
     {

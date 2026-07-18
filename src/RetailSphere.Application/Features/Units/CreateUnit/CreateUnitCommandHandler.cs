@@ -16,6 +16,9 @@ public sealed class CreateUnitCommandHandler(
 {
     public async Task<Result<UnitDto>> Handle(CreateUnitCommand request, CancellationToken cancellationToken)
     {
+        if (await unitRepository.NameExistsAsync(request.Name.Trim(), cancellationToken: cancellationToken))
+            return Result.Failure<UnitDto>(Error.Conflict("Unit.DuplicateName", "A unit with this name already exists."));
+
         var unitResult = Unit.Create(request.Name, request.ShortCode, request.AllowDecimal);
         if (unitResult.IsFailure)
             return Result.Failure<UnitDto>(unitResult.Error);

@@ -3,6 +3,8 @@ using FluentValidation;
 using Microsoft.Extensions.DependencyInjection;
 using RetailSphere.Application.Common.Behaviors;
 using RetailSphere.Application.Common.Services;
+using RetailSphere.Application.Features.Inventory.Common;
+using RetailSphere.Application.Features.Inventory.StockTransfers.Common;
 using RetailSphere.Application.Features.Products.Common;
 using RetailSphere.Application.Features.PurchaseOrders.Common;
 using RetailSphere.Application.Features.Users.Common;
@@ -29,6 +31,8 @@ public static class DependencyInjection
         services.AddScoped<UserDtoAssembler>();
         services.AddScoped<ProductDtoAssembler>();
         services.AddScoped<PurchaseOrderDtoAssembler>();
+        services.AddScoped<StockItemDtoAssembler>();
+        services.AddScoped<StockTransferDtoAssembler>();
 
         return services;
     }

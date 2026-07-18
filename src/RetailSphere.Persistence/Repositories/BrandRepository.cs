@@ -15,6 +15,15 @@ public sealed class BrandRepository(RetailSphereDbContext dbContext) : IBrandRep
         return await query.OrderBy(b => b.Name).ToListAsync(cancellationToken);
     }
 
+    /// <summary>
+    /// Ignores the soft-delete query filter — see PurchaseOrderRepository.PoNumberExistsAsync
+    /// for why: Brands.HasQueryFilter(b => !b.IsDeleted) would otherwise let a
+    /// soft-deleted brand's name look free forever, while Name's unique index still
+    /// rejects the physical duplicate on insert/update.
+    /// </summary>
+    public Task<bool> NameExistsAsync(string name, long? excludeId = null, CancellationToken cancellationToken = default) =>
+        dbContext.Brands.IgnoreQueryFilters().AnyAsync(b => b.Name == name && (excludeId == null || b.Id != excludeId.Value), cancellationToken);
+
     public void Add(Brand brand) => dbContext.Brands.Add(brand);
 
     public void Update(Brand brand) => dbContext.Brands.Update(brand);

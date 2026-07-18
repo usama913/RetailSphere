@@ -15,6 +15,9 @@ public sealed class CreateBrandCommandHandler(
 {
     public async Task<Result<BrandDto>> Handle(CreateBrandCommand request, CancellationToken cancellationToken)
     {
+        if (await brandRepository.NameExistsAsync(request.Name.Trim(), cancellationToken: cancellationToken))
+            return Result.Failure<BrandDto>(Error.Conflict("Brand.DuplicateName", "A brand with this name already exists."));
+
         var brandResult = Brand.Create(request.Name, request.Description);
         if (brandResult.IsFailure)
             return Result.Failure<BrandDto>(brandResult.Error);

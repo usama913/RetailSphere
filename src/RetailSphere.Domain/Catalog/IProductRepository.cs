@@ -4,6 +4,14 @@ public interface IProductRepository
 {
     Task<Product?> GetByIdAsync(long id, CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Batch-resolves the owning Products (with Variants loaded) for a set of
+    /// ProductVariantIds — the lookup the Inventory module needs to show a SKU/Product
+    /// name for a StockItem, since StockItem only stores a plain ProductVariantId and
+    /// there's no dedicated ProductVariant repository (it's a child of Product).
+    /// </summary>
+    Task<IReadOnlyList<Product>> GetByVariantIdsAsync(IEnumerable<long> variantIds, CancellationToken cancellationToken = default);
+
     Task<(IReadOnlyList<Product> Items, long TotalCount)> SearchAsync(
         int page,
         int pageSize,

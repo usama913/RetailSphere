@@ -5,6 +5,7 @@ using RetailSphere.Application.Common.Interfaces;
 using RetailSphere.Domain.Auditing;
 using RetailSphere.Domain.Catalog;
 using RetailSphere.Domain.IdentityAccess;
+using RetailSphere.Domain.Inventory;
 using RetailSphere.Domain.Organization;
 using RetailSphere.Domain.Purchasing;
 using RetailSphere.SharedKernel;
@@ -37,6 +38,10 @@ public sealed class RetailSphereDbContext(DbContextOptions<RetailSphereDbContext
     public DbSet<Supplier> Suppliers => Set<Supplier>();
 
     public DbSet<PurchaseOrder> PurchaseOrders => Set<PurchaseOrder>();
+
+    public DbSet<StockItem> StockItems => Set<StockItem>();
+
+    public DbSet<StockTransfer> StockTransfers => Set<StockTransfer>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

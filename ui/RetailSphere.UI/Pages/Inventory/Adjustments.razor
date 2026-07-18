@@ -1,0 +1,277 @@
+@page "/inventory/adjustments"
+@using RetailSphere.Contracts.Admin
+@using RetailSphere.Contracts.Catalog
+@using RetailSphere.Contracts.Inventory
+@attribute [Authorize]
+@inject IApiClient ApiClient
+@inject AuthenticationStateProvider AuthStateProvider
+@inject ISnackbar Snackbar
+
+<PageTitle>Stock Adjustments - RetailSphere</PageTitle>
+
+@if (!_canView)
+{
+    <MudAlert Severity="Severity.Warning">You don't have permission to view stock adjustments.</MudAlert>
+}
+else
+{
+
+<MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween" Class="mb-4">
+    <div>
+        <MudText Typo="Typo.h5">Stock Adjustments</MudText>
+        <MudText Typo="Typo.body2" Style="color: var(--mud-palette-text-secondary);">
+            Pick a product to see its stock across every branch and variant at once, and adjust or transfer as needed.
+        </MudText>
+    </div>
+</MudStack>
+
+<MudGrid Class="mb-4">
+    <MudItem xs="12" sm="6" md="4">
+        <MudSelect T="long?" Value="_selectedProductId" ValueChanged="OnProductChangedAsync" Label="Product" Variant="Variant.Outlined">
+            <MudSelectItem T="long?" Value="@((long?)null)">— Select —</MudSelectItem>
+            @foreach (var product in _products)
+            {
+                <MudSelectItem T="long?" Value="@((long?)product.Id)">@product.Name</MudSelectItem>
+            }
+        </MudSelect>
+    </MudItem>
+</MudGrid>
+
+@if (_isLoadingStock)
+{
+    <MudProgressLinear Indeterminate="true" Class="mb-4" />
+}
+else if (_selectedProduct is not null)
+{
+    <MudPaper Class="pa-4 mb-4" Elevation="1">
+        <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween" Class="mb-3" Wrap="Wrap.Wrap">
+            <MudText Typo="Typo.h6">@_selectedProduct.Name</MudText>
+            <MudText Typo="Typo.subtitle1">Total stock (all branches): @GetProductTotal().ToString("0.###")</MudText>
+        </MudStack>
+
+        @if (_selectedProduct.Variants.Count == 0)
+        {
+            <MudAlert Severity="Severity.Info">This product has no variants yet — add some from the Products page first.</MudAlert>
+        }
+        else if (_branches.Count == 0)
+        {
+            <MudAlert Severity="Severity.Info">No branches configured yet.</MudAlert>
+        }
+        else
+        {
+            <div style="overflow-x:auto;">
+                <table style="width:100%; border-collapse:collapse;">
+                    <thead>
+                        <tr>
+                            <th style="text-align:left; padding:8px; border-bottom:2px solid var(--mud-palette-lines-default);">Variant</th>
+                            @foreach (var branch in _branches)
+                            {
+                                <th style="text-align:left; padding:8px; border-bottom:2px solid var(--mud-palette-lines-default); min-width:170px;">@branch.Name</th>
+                            }
+                            <th style="text-align:left; padding:8px; border-bottom:2px solid var(--mud-palette-lines-default);">Variant total</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var variant in _selectedProduct.Variants)
+                        {
+                            <tr>
+                                <td style="padding:8px; border-bottom:1px solid var(--mud-palette-lines-default); vertical-align:top;">
+                                    <MudText Typo="Typo.body2">@variant.Sku</MudText>
+                                    <MudText Typo="Typo.caption" Style="color: var(--mud-palette-text-secondary);">@GetVariantLabel(variant)</MudText>
+                                </td>
+                                @foreach (var branch in _branches)
+                                {
+                                    <td style="padding:8px; border-bottom:1px solid var(--mud-palette-lines-default); vertical-align:top;">
+                                        <MudText Typo="Typo.caption" Style="color: var(--mud-palette-text-secondary);">
+                                            Current: @GetCurrentQty(variant.Id, branch.Id).ToString("0.###")
+                                        </MudText>
+                                        <MudNumericField T="decimal" Value="@GetPendingDelta(variant.Id, branch.Id)"
+                                                          ValueChanged="@(v => SetPendingDelta(variant.Id, branch.Id, v))"
+                                                          Variant="Variant.Outlined" Margin="Margin.Dense"
+                                                          Placeholder="+/- change"
+                                                          Disabled="@(!_canAdjust)" />
+                                    </td>
+                                }
+                                <td style="padding:8px; border-bottom:1px solid var(--mud-palette-lines-default); vertical-align:top;">
+                                    @GetVariantTotal(variant.Id).ToString("0.###")
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+
+            @if (_canAdjust)
+            {
+                <MudGrid Class="mt-4">
+                    <MudItem xs="12" sm="6" md="4">
+                        <MudTextField @bind-Value="_reason" Label="Reason" Variant="Variant.Outlined" Placeholder="e.g. Stock count correction, transfer, damage" Required="true" />
+                    </MudItem>
+                </MudGrid>
+                <MudStack Row="true" Class="mt-2" Spacing="2">
+                    <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="SaveChangesAsync" Disabled="@_isSaving">Save changes</MudButton>
+                    <MudButton Variant="Variant.Text" OnClick="ClearPendingChanges">Clear</MudButton>
+                </MudStack>
+            }
+        }
+    </MudPaper>
+}
+
+}
+
+@code {
+    private IReadOnlyList<ProductDto> _products = [];
+    private IReadOnlyList<BranchDto> _branches = [];
+    private IReadOnlyList<ProductAttributeDto> _attributes = [];
+    private HashSet<string> _permissions = [];
+
+    private long? _selectedProductId;
+    private ProductDto? _selectedProduct;
+    private List<StockItemDto> _stockItems = [];
+    private readonly Dictionary<(long VariantId, long BranchId), decimal> _pendingDeltas = new();
+    private string? _reason;
+    private bool _isLoadingStock;
+    private bool _isSaving;
+
+    private bool _canView => _permissions.Contains("inventory.adjustment.view");
+    private bool _canAdjust => _permissions.Contains("inventory.adjustment.create");
+
+    protected override async Task OnInitializedAsync()
+    {
+        var state = await AuthStateProvider.GetAuthenticationStateAsync();
+        _permissions = state.User.FindAll("permission").Select(c => c.Value).ToHashSet();
+
+        if (_canView)
+        {
+            var productsResult = await ApiClient.GetProductsAsync(1, 1000);
+            if (productsResult.Success && productsResult.Data is not null)
+                _products = productsResult.Data.Data;
+
+            var branchesResult = await ApiClient.GetBranchesAsync(includeInactive: false);
+            if (branchesResult.Success && branchesResult.Data is not null)
+                _branches = branchesResult.Data;
+
+            var attributesResult = await ApiClient.GetProductAttributesAsync();
+            if (attributesResult.Success && attributesResult.Data is not null)
+                _attributes = attributesResult.Data;
+        }
+    }
+
+    private async Task OnProductChangedAsync(long? productId)
+    {
+        _selectedProductId = productId;
+        _pendingDeltas.Clear();
+        _reason = null;
+
+        if (productId is null)
+        {
+            _selectedProduct = null;
+            _stockItems = [];
+            return;
+        }
+
+        _selectedProduct = _products.FirstOrDefault(p => p.Id == productId.Value);
+        await LoadStockForSelectedProductAsync();
+    }
+
+    private async Task LoadStockForSelectedProductAsync()
+    {
+        if (_selectedProductId is null)
+        {
+            _stockItems = [];
+            return;
+        }
+
+        _isLoadingStock = true;
+
+        var stockResult = await ApiClient.GetStockItemsAsync(1, 1000, productId: _selectedProductId.Value);
+        _stockItems = stockResult.Success && stockResult.Data is not null ? stockResult.Data.Data.ToList() : [];
+
+        _isLoadingStock = false;
+    }
+
+    private decimal GetCurrentQty(long variantId, long branchId) =>
+        _stockItems.FirstOrDefault(s => s.ProductVariantId == variantId && s.BranchId == branchId)?.QuantityOnHand ?? 0;
+
+    private decimal GetVariantTotal(long variantId) =>
+        _stockItems.Where(s => s.ProductVariantId == variantId).Sum(s => s.QuantityOnHand);
+
+    private decimal GetProductTotal() => _stockItems.Sum(s => s.QuantityOnHand);
+
+    private decimal GetPendingDelta(long variantId, long branchId) =>
+        _pendingDeltas.TryGetValue((variantId, branchId), out var value) ? value : 0;
+
+    private void SetPendingDelta(long variantId, long branchId, decimal value) =>
+        _pendingDeltas[(variantId, branchId)] = value;
+
+    private void ClearPendingChanges() => _pendingDeltas.Clear();
+
+    /// <summary>SKU's attribute values (e.g. "Size: 39") — mirrors the same helper on other Inventory/Purchasing pages.</summary>
+    private string GetVariantLabel(ProductVariantDto variant)
+    {
+        if (variant.AttributeValueIds.Count == 0)
+            return "—";
+
+        var parts = new List<string>();
+        foreach (var attribute in _attributes)
+        {
+            var matched = attribute.Values
+                .Where(v => variant.AttributeValueIds.Contains(v.Id))
+                .Select(v => v.Value)
+                .ToList();
+
+            if (matched.Count > 0)
+                parts.Add($"{attribute.Name}: {string.Join(", ", matched)}");
+        }
+
+        return parts.Count > 0 ? string.Join(" · ", parts) : "—";
+    }
+
+    private async Task SaveChangesAsync()
+    {
+        var changes = _pendingDeltas.Where(kvp => kvp.Value != 0).ToList();
+        if (changes.Count == 0)
+        {
+            Snackbar.Add("No changes to save.", Severity.Warning);
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(_reason))
+        {
+            Snackbar.Add("Reason is required.", Severity.Warning);
+            return;
+        }
+
+        _isSaving = true;
+        var successCount = 0;
+        var failureCount = 0;
+
+        foreach (var (key, delta) in changes)
+        {
+            var result = await ApiClient.AdjustStockAsync(new AdjustStockRequest
+            {
+                ProductVariantId = key.VariantId,
+                BranchId = key.BranchId,
+                QuantityDelta = delta,
+                Reason = _reason,
+            });
+
+            if (result.Success)
+                successCount++;
+            else
+                failureCount++;
+        }
+
+        if (failureCount == 0)
+            Snackbar.Add($"Saved {successCount} change(s).", Severity.Success);
+        else
+            Snackbar.Add($"Saved {successCount} change(s); {failureCount} failed (e.g. insufficient stock at a branch).", Severity.Warning);
+
+        _pendingDeltas.Clear();
+        _reason = null;
+
+        await LoadStockForSelectedProductAsync();
+
+        _isSaving = false;
+    }
+}

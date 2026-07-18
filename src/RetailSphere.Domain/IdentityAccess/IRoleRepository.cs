@@ -6,6 +6,9 @@ public interface IRoleRepository
 
     Task<IReadOnlyList<Role>> GetAllAsync(CancellationToken cancellationToken = default);
 
+    /// <summary>Ignores the soft-delete filter — see RoleRepository.NameExistsAsync.</summary>
+    Task<bool> NameExistsAsync(string name, long? excludeId = null, CancellationToken cancellationToken = default);
+
     Task<IReadOnlyList<Permission>> GetPermissionsAsync(IEnumerable<long> permissionIds, CancellationToken cancellationToken = default);
 
     /// <summary>Every seeded permission — powers the Admin &gt; Roles permission matrix (Phase 1).</summary>

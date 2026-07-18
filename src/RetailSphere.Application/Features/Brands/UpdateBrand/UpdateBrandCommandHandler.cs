@@ -19,6 +19,9 @@ public sealed class UpdateBrandCommandHandler(
         if (brand is null)
             return Result.Failure<BrandDto>(Error.NotFound("Brand.NotFound", "Brand not found."));
 
+        if (await brandRepository.NameExistsAsync(request.Name.Trim(), request.Id, cancellationToken))
+            return Result.Failure<BrandDto>(Error.Conflict("Brand.DuplicateName", "A brand with this name already exists."));
+
         var updateResult = brand.UpdateDetails(request.Name, request.Description);
         if (updateResult.IsFailure)
             return Result.Failure<BrandDto>(updateResult.Error);
