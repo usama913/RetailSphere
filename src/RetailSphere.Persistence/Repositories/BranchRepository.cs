@@ -15,8 +15,14 @@ public sealed class BranchRepository(RetailSphereDbContext dbContext) : IBranchR
         return await query.ToListAsync(cancellationToken);
     }
 
+    /// <summary>
+    /// Ignores the soft-delete query filter — see PurchaseOrderRepository.PoNumberExistsAsync
+    /// for why: Branches.HasQueryFilter(b => !b.IsDeleted) would otherwise hide a
+    /// deleted branch's code, and Code's unique index would still reject the physical
+    /// duplicate on insert.
+    /// </summary>
     public Task<bool> CodeExistsAsync(string code, CancellationToken cancellationToken = default) =>
-        dbContext.Branches.AnyAsync(b => b.Code == code.ToUpper(), cancellationToken);
+        dbContext.Branches.IgnoreQueryFilters().AnyAsync(b => b.Code == code.ToUpper(), cancellationToken);
 
     public void Add(Branch branch) => dbContext.Branches.Add(branch);
 

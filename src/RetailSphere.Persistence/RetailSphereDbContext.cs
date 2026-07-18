@@ -6,6 +6,7 @@ using RetailSphere.Domain.Auditing;
 using RetailSphere.Domain.Catalog;
 using RetailSphere.Domain.IdentityAccess;
 using RetailSphere.Domain.Organization;
+using RetailSphere.Domain.Purchasing;
 using RetailSphere.SharedKernel;
 
 namespace RetailSphere.Persistence;
@@ -32,6 +33,10 @@ public sealed class RetailSphereDbContext(DbContextOptions<RetailSphereDbContext
     public DbSet<Product> Products => Set<Product>();
 
     public DbSet<RetailSphere.Domain.Catalog.Unit> Units => Set<RetailSphere.Domain.Catalog.Unit>();
+
+    public DbSet<Supplier> Suppliers => Set<Supplier>();
+
+    public DbSet<PurchaseOrder> PurchaseOrders => Set<PurchaseOrder>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

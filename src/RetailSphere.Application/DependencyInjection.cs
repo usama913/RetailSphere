@@ -4,6 +4,7 @@ using Microsoft.Extensions.DependencyInjection;
 using RetailSphere.Application.Common.Behaviors;
 using RetailSphere.Application.Common.Services;
 using RetailSphere.Application.Features.Products.Common;
+using RetailSphere.Application.Features.PurchaseOrders.Common;
 using RetailSphere.Application.Features.Users.Common;
 
 namespace RetailSphere.Application;
@@ -27,6 +28,7 @@ public static class DependencyInjection
         services.AddScoped<AuditLogService>();
         services.AddScoped<UserDtoAssembler>();
         services.AddScoped<ProductDtoAssembler>();
+        services.AddScoped<PurchaseOrderDtoAssembler>();
 
         return services;
     }

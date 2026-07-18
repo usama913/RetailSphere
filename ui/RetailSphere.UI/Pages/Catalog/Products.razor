@@ -166,10 +166,19 @@ else
                     </MudSelect>
                 </MudItem>
                 <MudItem xs="12" sm="6" md="3">
-                    <MudNumericField @bind-Value="_variantCostPrice" Label="Cost price (optional)" Variant="Variant.Outlined" Margin="Margin.Dense" Min="0" />
+                    <MudNumericField T="decimal?" Value="_variantCostPrice" ValueChanged="OnVariantCostPriceChanged" Label="Cost price (optional)" Variant="Variant.Outlined" Margin="Margin.Dense" Min="0" />
                 </MudItem>
+                <MudItem xs="12" sm="6" md="3" Class="d-flex align-center">
+                    <MudSwitch T="bool" Value="_variantUseProfitPercent" ValueChanged="OnVariantUseProfitPercentChanged" Label="Price by profit %" Color="Color.Primary" />
+                </MudItem>
+                @if (_variantUseProfitPercent)
+                {
+                    <MudItem xs="12" sm="6" md="3">
+                        <MudNumericField T="decimal" Value="_variantProfitPercent" ValueChanged="OnVariantProfitPercentChanged" Label="Profit %" Variant="Variant.Outlined" Margin="Margin.Dense" Min="0" />
+                    </MudItem>
+                }
                 <MudItem xs="12" sm="6" md="3">
-                    <MudNumericField @bind-Value="_variantPrice" Label="Selling price" Variant="Variant.Outlined" Margin="Margin.Dense" Min="0" />
+                    <MudNumericField @bind-Value="_variantPrice" Label="Selling price" Variant="Variant.Outlined" Margin="Margin.Dense" Min="0" Disabled="@_variantUseProfitPercent" />
                 </MudItem>
                 <MudItem xs="12" sm="6" md="3">
                     <MudNumericField @bind-Value="_variantCompareAtPrice" Label="Compare-at price (optional)" Variant="Variant.Outlined" Margin="Margin.Dense" Min="0" />
@@ -330,6 +339,8 @@ else
     private string _variantBarcodeType = "C128";
     private decimal? _variantCostPrice;
     private decimal _variantPrice;
+    private bool _variantUseProfitPercent;
+    private decimal _variantProfitPercent;
     private decimal? _variantCompareAtPrice;
     private decimal _variantTaxRate;
     private string _variantTaxType = "Exclusive";
@@ -469,6 +480,8 @@ else
         _variantBarcodeType = "C128";
         _variantCostPrice = null;
         _variantPrice = 0;
+        _variantUseProfitPercent = false;
+        _variantProfitPercent = 0;
         _variantCompareAtPrice = null;
         _variantTaxRate = 0;
         _variantTaxType = "Exclusive";
@@ -482,6 +495,38 @@ else
     }
 
     private void CancelForm() => _showForm = false;
+
+    private void OnVariantCostPriceChanged(decimal? value)
+    {
+        _variantCostPrice = value;
+        RecalculateVariantPrice();
+    }
+
+    private void OnVariantProfitPercentChanged(decimal value)
+    {
+        _variantProfitPercent = value;
+        RecalculateVariantPrice();
+    }
+
+    private void OnVariantUseProfitPercentChanged(bool value)
+    {
+        _variantUseProfitPercent = value;
+        if (value)
+            RecalculateVariantPrice();
+    }
+
+    /// <summary>
+    /// Markup-over-cost pricing: price = cost + cost * (percent / 100) — e.g. cost 200
+    /// with a 50% profit ratio gives a selling price of 300. Recalculated live whenever
+    /// the cost price or the percent changes while this mode is on.
+    /// </summary>
+    private void RecalculateVariantPrice()
+    {
+        if (_variantUseProfitPercent && _variantCostPrice is > 0)
+        {
+            _variantPrice = Math.Round(_variantCostPrice.Value * (1 + _variantProfitPercent / 100m), 2);
+        }
+    }
 
     private void ToggleVariantAttributeValue(long valueId, bool isSelected)
     {
@@ -562,6 +607,12 @@ else
     {
         if (_editingProductId is null)
             return;
+
+        if (_variantUseProfitPercent && (_variantCostPrice is null || _variantCostPrice <= 0))
+        {
+            Snackbar.Add("Cost price is required to calculate the selling price by profit %.", Severity.Warning);
+            return;
+        }
 
         var result = await ApiClient.AddVariantAsync(_editingProductId.Value, new AddVariantRequest
         {

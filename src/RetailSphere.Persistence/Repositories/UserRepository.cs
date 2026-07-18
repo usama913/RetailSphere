@@ -23,10 +23,16 @@ public sealed class UserRepository(RetailSphereDbContext dbContext) : IUserRepos
             .Include(u => u.RefreshTokens)
             .FirstOrDefaultAsync(u => u.RefreshTokens.Any(rt => rt.TokenHash == tokenHash), cancellationToken);
 
+    /// <summary>
+    /// Ignores the soft-delete query filter — see PurchaseOrderRepository.PoNumberExistsAsync
+    /// for why: Users.HasQueryFilter(u => !u.IsDeleted) would otherwise hide a
+    /// deactivated/offboarded user's email, and NormalizedEmail's unique index would
+    /// still reject the physical duplicate on insert (e.g. re-inviting a former employee).
+    /// </summary>
     public Task<bool> EmailExistsAsync(string email, CancellationToken cancellationToken = default)
     {
         var normalized = Normalize(email);
-        return dbContext.Users.AnyAsync(u => u.NormalizedEmail == normalized, cancellationToken);
+        return dbContext.Users.IgnoreQueryFilters().AnyAsync(u => u.NormalizedEmail == normalized, cancellationToken);
     }
 
     public async Task<(IReadOnlyList<User> Items, long TotalCount)> SearchAsync(

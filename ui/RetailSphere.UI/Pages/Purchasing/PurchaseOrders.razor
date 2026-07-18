@@ -1,0 +1,810 @@
+@page "/purchasing/orders"
+@using RetailSphere.Contracts.Admin
+@using RetailSphere.Contracts.Catalog
+@using RetailSphere.Contracts.Purchasing
+@attribute [Authorize]
+@inject IApiClient ApiClient
+@inject AuthenticationStateProvider AuthStateProvider
+@inject ISnackbar Snackbar
+
+<PageTitle>Purchase Orders - RetailSphere</PageTitle>
+
+@if (!_canView)
+{
+    <MudAlert Severity="Severity.Warning">You don't have permission to view purchase orders.</MudAlert>
+}
+else
+{
+
+<MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween" Class="mb-4">
+    <div>
+        <MudText Typo="Typo.h5">Purchase Orders</MudText>
+        <MudText Typo="Typo.body2" Style="color: var(--mud-palette-text-secondary);">Requests to suppliers for stock, by receiving branch.</MudText>
+    </div>
+    @if (_canCreate)
+    {
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" OnClick="ShowCreateForm">
+            New Purchase Order
+        </MudButton>
+    }
+</MudStack>
+
+<MudGrid Class="mb-4">
+    <MudItem xs="12" sm="6" md="3">
+        <MudTextField T="string" Value="@_search" ValueChanged="OnSearchChanged" Label="Search PO #"
+                      Variant="Variant.Outlined" Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search"
+                      Immediate="true" DebounceInterval="300" />
+    </MudItem>
+    <MudItem xs="12" sm="6" md="3">
+        <MudSelect T="long?" Value="_filterSupplierId" ValueChanged="OnFilterSupplierChanged" Label="Supplier" Variant="Variant.Outlined">
+            <MudSelectItem T="long?" Value="@((long?)null)">All suppliers</MudSelectItem>
+            @foreach (var supplier in _suppliers)
+            {
+                <MudSelectItem T="long?" Value="@((long?)supplier.Id)">@supplier.Name</MudSelectItem>
+            }
+        </MudSelect>
+    </MudItem>
+    <MudItem xs="12" sm="6" md="3">
+        <MudSelect T="long?" Value="_filterBranchId" ValueChanged="OnFilterBranchChanged" Label="Branch" Variant="Variant.Outlined">
+            <MudSelectItem T="long?" Value="@((long?)null)">All branches</MudSelectItem>
+            @foreach (var branch in _branches)
+            {
+                <MudSelectItem T="long?" Value="@((long?)branch.Id)">@branch.Name</MudSelectItem>
+            }
+        </MudSelect>
+    </MudItem>
+    <MudItem xs="12" sm="6" md="3">
+        <MudSelect T="string" Value="_filterStatus" ValueChanged="OnFilterStatusChanged" Label="Status" Variant="Variant.Outlined">
+            <MudSelectItem T="string" Value="@string.Empty">All statuses</MudSelectItem>
+            @foreach (var status in Statuses)
+            {
+                <MudSelectItem T="string" Value="@status">@status</MudSelectItem>
+            }
+        </MudSelect>
+    </MudItem>
+</MudGrid>
+
+@if (_showForm)
+{
+    <MudPaper Class="pa-4 mb-4" Elevation="1">
+        <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween" Class="mb-3">
+            <MudText Typo="Typo.h6">@(_editingId is null ? "New Purchase Order" : $"Edit {_editingPoNumber}")</MudText>
+            @if (_editingId is not null)
+            {
+                <MudChip T="string" Size="Size.Small" Color="@GetStatusColor(_editingStatus)">@_editingStatus</MudChip>
+            }
+        </MudStack>
+
+        <MudGrid>
+            <MudItem xs="12" sm="6" md="3">
+                <MudSelect T="long?" @bind-Value="_formSupplierId" Label="Supplier" Variant="Variant.Outlined" Disabled="@(!_isDraftOrNew)">
+                    <MudSelectItem T="long?" Value="@((long?)null)">— Select —</MudSelectItem>
+                    @foreach (var supplier in _suppliers)
+                    {
+                        <MudSelectItem T="long?" Value="@((long?)supplier.Id)">@supplier.Name</MudSelectItem>
+                    }
+                </MudSelect>
+            </MudItem>
+            <MudItem xs="12" sm="6" md="3">
+                <MudSelect T="long?" @bind-Value="_formBranchId" Label="Receiving branch" Variant="Variant.Outlined" Disabled="@(!_isDraftOrNew)">
+                    <MudSelectItem T="long?" Value="@((long?)null)">— Select —</MudSelectItem>
+                    @foreach (var branch in _branches)
+                    {
+                        <MudSelectItem T="long?" Value="@((long?)branch.Id)">@branch.Name</MudSelectItem>
+                    }
+                </MudSelect>
+            </MudItem>
+            <MudItem xs="12" sm="6" md="3">
+                <MudDatePicker @bind-Date="_formOrderDate" Label="Order date" Variant="Variant.Outlined" Disabled="@(!_isDraftOrNew)" />
+            </MudItem>
+            <MudItem xs="12" sm="6" md="3">
+                <MudDatePicker @bind-Date="_formExpectedDeliveryDate" Label="Expected delivery (optional)" Variant="Variant.Outlined" Disabled="@(!_isDraftOrNew)" />
+            </MudItem>
+            <MudItem xs="12">
+                <MudTextField @bind-Value="_formNotes" Label="Notes" Variant="Variant.Outlined" Lines="2" Disabled="@(!_isDraftOrNew)" />
+            </MudItem>
+        </MudGrid>
+
+        <MudStack Row="true" Class="mt-4" Spacing="2" Wrap="Wrap.Wrap">
+            @if (_isDraftOrNew)
+            {
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="SaveHeaderAsync" Disabled="@_isSaving">Save</MudButton>
+            }
+            @if (_editingId is not null && _editingStatus == "Draft")
+            {
+                <MudButton Variant="Variant.Filled" Color="Color.Success" OnClick="SubmitAsync">Submit</MudButton>
+            }
+            @if (_editingId is not null && _editingStatus is "Draft" or "Submitted" or "PartiallyReceived")
+            {
+                <MudButton Variant="Variant.Outlined" Color="Color.Error" OnClick="CancelPoAsync">Cancel PO</MudButton>
+            }
+            <MudButton Variant="Variant.Text" OnClick="CloseForm">Close</MudButton>
+        </MudStack>
+
+        @if (_editingId is not null)
+        {
+            <MudDivider Class="my-4" />
+            <MudText Typo="Typo.subtitle1" Class="mb-2">Lines — Total: @_editingLines.Sum(l => l.LineTotal).ToString("0.00")</MudText>
+
+            @if (_editingLines.Count > 0)
+            {
+                <MudTable Items="@_editingLines" Hover="true" Dense="true">
+                    <HeaderContent>
+                        <MudTh>SKU / Description</MudTh>
+                        <MudTh>Qty ordered</MudTh>
+                        <MudTh>Qty received</MudTh>
+                        <MudTh>Unit cost</MudTh>
+                        <MudTh>Line total</MudTh>
+                        <MudTh>Actions</MudTh>
+                    </HeaderContent>
+                    <RowTemplate>
+                        <MudTd DataLabel="SKU / Description">@context.DescriptionSnapshot</MudTd>
+                        <MudTd DataLabel="Qty ordered">@context.QuantityOrdered</MudTd>
+                        <MudTd DataLabel="Qty received">@context.QuantityReceived</MudTd>
+                        <MudTd DataLabel="Unit cost">@context.UnitCost.ToString("0.00")</MudTd>
+                        <MudTd DataLabel="Line total">@context.LineTotal.ToString("0.00")</MudTd>
+                        <MudTd DataLabel="Actions">
+                            @if (_editingStatus == "Draft")
+                            {
+                                <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" OnClick="@(() => RemoveLineAsync(context.Id))" />
+                            }
+                            @if (_editingStatus is "Submitted" or "PartiallyReceived" && !context.IsFullyReceived && _canReceive)
+                            {
+                                <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1" Class="mt-1">
+                                    <MudNumericField T="decimal" Value="@GetReceiveDraft(context.Id)" ValueChanged="@(v => SetReceiveDraft(context.Id, v))"
+                                                      Label="Receive qty" Variant="Variant.Outlined" Margin="Margin.Dense" Min="0" Max="@context.RemainingQuantity" />
+                                    <MudButton Variant="Variant.Outlined" Size="Size.Small" OnClick="@(() => ReceiveLineAsync(context.Id))">Receive</MudButton>
+                                </MudStack>
+                            }
+                        </MudTd>
+                    </RowTemplate>
+                </MudTable>
+            }
+
+            @if (_editingStatus == "Draft")
+            {
+                <MudStack Row="true" Justify="Justify.FlexEnd" Class="mt-3 mb-1">
+                    <MudButton Variant="Variant.Text" Color="Color.Primary" Size="Size.Small" StartIcon="@Icons.Material.Filled.Add" OnClick="ShowQuickAddProduct">
+                        New product
+                    </MudButton>
+                </MudStack>
+                <MudGrid>
+                    <MudItem xs="12" sm="6" md="3">
+                        <MudSelect T="long?" @bind-Value="_lineProductId" Label="Product" Variant="Variant.Outlined" Margin="Margin.Dense">
+                            <MudSelectItem T="long?" Value="@((long?)null)">— Select —</MudSelectItem>
+                            @foreach (var product in _products)
+                            {
+                                <MudSelectItem T="long?" Value="@((long?)product.Id)">@product.Name</MudSelectItem>
+                            }
+                        </MudSelect>
+                    </MudItem>
+                    <MudItem xs="12" sm="6" md="3">
+                        <MudSelect T="long?" @bind-Value="_lineVariantId" Label="Variant" Variant="Variant.Outlined" Margin="Margin.Dense">
+                            <MudSelectItem T="long?" Value="@((long?)null)">— Select —</MudSelectItem>
+                            @foreach (var variant in GetVariantsForSelectedProduct())
+                            {
+                                <MudSelectItem T="long?" Value="@((long?)variant.Id)">@variant.Sku</MudSelectItem>
+                            }
+                        </MudSelect>
+                    </MudItem>
+                    <MudItem xs="12" sm="6" md="3">
+                        <MudNumericField @bind-Value="_lineQuantity" Label="Quantity" Variant="Variant.Outlined" Margin="Margin.Dense" Min="0" />
+                    </MudItem>
+                    <MudItem xs="12" sm="6" md="3">
+                        <MudNumericField @bind-Value="_lineUnitCost" Label="Unit cost" Variant="Variant.Outlined" Margin="Margin.Dense" Min="0" />
+                    </MudItem>
+                </MudGrid>
+
+                @if (_showQuickAddProduct)
+                {
+                    <MudPaper Class="pa-3 mt-2" Elevation="2" Style="border: 1px solid var(--mud-palette-lines-default);">
+                        <MudText Typo="Typo.subtitle2" Class="mb-2">New Product</MudText>
+                        <MudGrid>
+                            <MudItem xs="12" sm="6" md="3">
+                                <MudTextField @bind-Value="_qapName" Label="Name" Variant="Variant.Outlined" Margin="Margin.Dense" Required="true" />
+                            </MudItem>
+                            <MudItem xs="12" sm="6" md="3">
+                                <MudSelect T="long?" @bind-Value="_qapCategoryId" Label="Category (optional)" Variant="Variant.Outlined" Margin="Margin.Dense">
+                                    <MudSelectItem T="long?" Value="@((long?)null)">— None —</MudSelectItem>
+                                    @foreach (var category in _categories)
+                                    {
+                                        <MudSelectItem T="long?" Value="@((long?)category.Id)">@category.Name</MudSelectItem>
+                                    }
+                                </MudSelect>
+                            </MudItem>
+                            <MudItem xs="12" sm="6" md="3">
+                                <MudSelect T="long?" @bind-Value="_qapBrandId" Label="Brand (optional)" Variant="Variant.Outlined" Margin="Margin.Dense">
+                                    <MudSelectItem T="long?" Value="@((long?)null)">— None —</MudSelectItem>
+                                    @foreach (var brand in _brands)
+                                    {
+                                        <MudSelectItem T="long?" Value="@((long?)brand.Id)">@brand.Name</MudSelectItem>
+                                    }
+                                </MudSelect>
+                            </MudItem>
+                            <MudItem xs="12" sm="6" md="3">
+                                <MudSelect T="long?" @bind-Value="_qapUnitId" Label="Unit (optional)" Variant="Variant.Outlined" Margin="Margin.Dense">
+                                    <MudSelectItem T="long?" Value="@((long?)null)">— None —</MudSelectItem>
+                                    @foreach (var unit in _units)
+                                    {
+                                        <MudSelectItem T="long?" Value="@((long?)unit.Id)">@unit.Name</MudSelectItem>
+                                    }
+                                </MudSelect>
+                            </MudItem>
+                            <MudItem xs="12" sm="6" md="3">
+                                <MudNumericField T="decimal?" Value="_qapCostPrice" ValueChanged="OnQapCostPriceChanged" Label="Cost price (optional)" Variant="Variant.Outlined" Margin="Margin.Dense" Min="0" />
+                            </MudItem>
+                            <MudItem xs="12" sm="6" md="3" Class="d-flex align-center">
+                                <MudSwitch T="bool" Value="_qapUseProfitPercent" ValueChanged="OnQapUseProfitPercentChanged" Label="Price by profit %" Color="Color.Primary" />
+                            </MudItem>
+                            @if (_qapUseProfitPercent)
+                            {
+                                <MudItem xs="12" sm="6" md="3">
+                                    <MudNumericField T="decimal" Value="_qapProfitPercent" ValueChanged="OnQapProfitPercentChanged" Label="Profit %" Variant="Variant.Outlined" Margin="Margin.Dense" Min="0" />
+                                </MudItem>
+                            }
+                            <MudItem xs="12" sm="6" md="3">
+                                <MudNumericField @bind-Value="_qapPrice" Label="Selling price" Variant="Variant.Outlined" Margin="Margin.Dense" Min="0" Required="true" Disabled="@_qapUseProfitPercent" />
+                            </MudItem>
+                        </MudGrid>
+                        <MudStack Row="true" Class="mt-2" Spacing="2">
+                            <MudButton Variant="Variant.Filled" Color="Color.Primary" Size="Size.Small" OnClick="CreateQuickProductAsync" Disabled="@_isSavingQuickProduct">Create &amp; use</MudButton>
+                            <MudButton Variant="Variant.Text" Size="Size.Small" OnClick="@(() => _showQuickAddProduct = false)">Cancel</MudButton>
+                        </MudStack>
+                    </MudPaper>
+                }
+
+                <MudButton Variant="Variant.Outlined" Color="Color.Primary" Class="mt-2" OnClick="AddLineAsync">Add Line</MudButton>
+            }
+        }
+    </MudPaper>
+}
+
+<MudTable Items="@_purchaseOrders" Hover="true" Dense="true" Loading="@_isLoading">
+    <HeaderContent>
+        <MudTh>PO #</MudTh>
+        <MudTh>Supplier</MudTh>
+        <MudTh>Branch</MudTh>
+        <MudTh>Order date</MudTh>
+        <MudTh>Status</MudTh>
+        <MudTh>Total</MudTh>
+        <MudTh>Actions</MudTh>
+    </HeaderContent>
+    <RowTemplate>
+        <MudTd DataLabel="PO #">@context.PoNumber</MudTd>
+        <MudTd DataLabel="Supplier">@(context.SupplierName ?? "—")</MudTd>
+        <MudTd DataLabel="Branch">@(context.BranchName ?? "—")</MudTd>
+        <MudTd DataLabel="Order date">@context.OrderDate.ToString("yyyy-MM-dd")</MudTd>
+        <MudTd DataLabel="Status">
+            <MudChip T="string" Size="Size.Small" Color="@GetStatusColor(context.Status)">@context.Status</MudChip>
+        </MudTd>
+        <MudTd DataLabel="Total">@context.TotalAmount.ToString("0.00")</MudTd>
+        <MudTd DataLabel="Actions">
+            <MudIconButton Icon="@Icons.Material.Filled.Visibility" Size="Size.Small" OnClick="@(() => ShowEditFormAsync(context.Id))" />
+            @if (_canEdit && context.Status == "Draft")
+            {
+                <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" OnClick="@(() => DeleteAsync(context.Id))" />
+            }
+        </MudTd>
+    </RowTemplate>
+</MudTable>
+
+<MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.Center" Class="mt-4" Spacing="4">
+    <MudIconButton Icon="@Icons.Material.Filled.ChevronLeft" Disabled="@(_page <= 1)" OnClick="@(() => ChangePageAsync(_page - 1))" />
+    <MudText Typo="Typo.body2">Page @_page of @_totalPages</MudText>
+    <MudIconButton Icon="@Icons.Material.Filled.ChevronRight" Disabled="@(_page >= _totalPages)" OnClick="@(() => ChangePageAsync(_page + 1))" />
+</MudStack>
+
+}
+
+@code {
+    private const int PageSize = 25;
+
+    private static readonly IReadOnlyList<string> Statuses = ["Draft", "Submitted", "PartiallyReceived", "Received", "Cancelled"];
+
+    private IReadOnlyList<PurchaseOrderDto> _purchaseOrders = [];
+    private IReadOnlyList<SupplierDto> _suppliers = [];
+    private IReadOnlyList<BranchDto> _branches = [];
+    private IReadOnlyList<ProductDto> _products = [];
+    private IReadOnlyList<CategoryDto> _categories = [];
+    private IReadOnlyList<BrandDto> _brands = [];
+    private IReadOnlyList<UnitDto> _units = [];
+    private HashSet<string> _permissions = [];
+    private readonly Dictionary<long, decimal> _receiveDrafts = new();
+
+    private bool _isLoading = true;
+    private bool _isSaving;
+    private string _search = string.Empty;
+    private long? _filterSupplierId;
+    private long? _filterBranchId;
+    private string _filterStatus = string.Empty;
+    private int _page = 1;
+    private long _totalCount;
+    private int _totalPages = 1;
+
+    private bool _showForm;
+    private long? _editingId;
+    private string _editingPoNumber = string.Empty;
+    private string _editingStatus = "Draft";
+    private List<PurchaseOrderLineDto> _editingLines = [];
+
+    private long? _formSupplierId;
+    private long? _formBranchId;
+    private DateTime? _formOrderDate = DateTime.UtcNow;
+    private DateTime? _formExpectedDeliveryDate;
+    private string? _formNotes;
+
+    private long? _lineProductId;
+    private long? _lineVariantId;
+    private decimal _lineQuantity;
+    private decimal _lineUnitCost;
+
+    private bool _showQuickAddProduct;
+    private bool _isSavingQuickProduct;
+    private string _qapName = string.Empty;
+    private long? _qapCategoryId;
+    private long? _qapBrandId;
+    private long? _qapUnitId;
+    private decimal _qapPrice;
+    private decimal? _qapCostPrice;
+    private bool _qapUseProfitPercent;
+    private decimal _qapProfitPercent;
+
+    private bool _isDraftOrNew => _editingId is null || _editingStatus == "Draft";
+
+    private bool _canView => _permissions.Contains("purchasing.orders.view");
+    private bool _canCreate => _permissions.Contains("purchasing.orders.create");
+    private bool _canEdit => _permissions.Contains("purchasing.orders.edit");
+    private bool _canReceive => _permissions.Contains("purchasing.orders.receive");
+
+    protected override async Task OnInitializedAsync()
+    {
+        var state = await AuthStateProvider.GetAuthenticationStateAsync();
+        _permissions = state.User.FindAll("permission").Select(c => c.Value).ToHashSet();
+
+        if (_canView)
+        {
+            var suppliersResult = await ApiClient.GetSuppliersAsync(includeInactive: true);
+            if (suppliersResult.Success && suppliersResult.Data is not null)
+                _suppliers = suppliersResult.Data;
+
+            var branchesResult = await ApiClient.GetBranchesAsync(includeInactive: true);
+            if (branchesResult.Success && branchesResult.Data is not null)
+                _branches = branchesResult.Data;
+
+            var productsResult = await ApiClient.GetProductsAsync(1, 1000);
+            if (productsResult.Success && productsResult.Data is not null)
+                _products = productsResult.Data.Data;
+
+            var categoriesResult = await ApiClient.GetCategoriesAsync(includeInactive: false);
+            if (categoriesResult.Success && categoriesResult.Data is not null)
+                _categories = categoriesResult.Data;
+
+            var brandsResult = await ApiClient.GetBrandsAsync(includeInactive: false);
+            if (brandsResult.Success && brandsResult.Data is not null)
+                _brands = brandsResult.Data;
+
+            var unitsResult = await ApiClient.GetUnitsAsync(includeInactive: false);
+            if (unitsResult.Success && unitsResult.Data is not null)
+                _units = unitsResult.Data;
+
+            await LoadAsync();
+        }
+        else
+        {
+            _isLoading = false;
+        }
+    }
+
+    private async Task LoadAsync()
+    {
+        _isLoading = true;
+
+        var result = await ApiClient.GetPurchaseOrdersAsync(
+            _page, PageSize, string.IsNullOrWhiteSpace(_search) ? null : _search, _filterSupplierId, _filterBranchId,
+            string.IsNullOrWhiteSpace(_filterStatus) ? null : _filterStatus);
+
+        if (result.Success && result.Data is not null)
+        {
+            _purchaseOrders = result.Data.Data;
+            _totalCount = result.Data.TotalCount;
+            _totalPages = Math.Max(1, (int)Math.Ceiling(_totalCount / (double)PageSize));
+        }
+        else
+        {
+            Snackbar.Add(result.Error?.Message ?? "Failed to load purchase orders.", Severity.Error);
+        }
+
+        _isLoading = false;
+    }
+
+    private async Task OnSearchChanged(string value)
+    {
+        _search = value;
+        _page = 1;
+        await LoadAsync();
+    }
+
+    private async Task OnFilterSupplierChanged(long? value)
+    {
+        _filterSupplierId = value;
+        _page = 1;
+        await LoadAsync();
+    }
+
+    private async Task OnFilterBranchChanged(long? value)
+    {
+        _filterBranchId = value;
+        _page = 1;
+        await LoadAsync();
+    }
+
+    private async Task OnFilterStatusChanged(string value)
+    {
+        _filterStatus = value;
+        _page = 1;
+        await LoadAsync();
+    }
+
+    private async Task ChangePageAsync(int newPage)
+    {
+        _page = newPage;
+        await LoadAsync();
+    }
+
+    private static Color GetStatusColor(string status) => status switch
+    {
+        "Draft" => Color.Default,
+        "Submitted" => Color.Info,
+        "PartiallyReceived" => Color.Warning,
+        "Received" => Color.Success,
+        "Cancelled" => Color.Error,
+        _ => Color.Default,
+    };
+
+    private IReadOnlyList<ProductVariantDto> GetVariantsForSelectedProduct()
+    {
+        if (_lineProductId is null) return [];
+        var product = _products.FirstOrDefault(p => p.Id == _lineProductId.Value);
+        return product?.Variants ?? [];
+    }
+
+    private decimal GetReceiveDraft(long lineId) => _receiveDrafts.TryGetValue(lineId, out var value) ? value : 0;
+
+    private void SetReceiveDraft(long lineId, decimal value) => _receiveDrafts[lineId] = value;
+
+    private void ShowCreateForm()
+    {
+        _editingId = null;
+        _editingPoNumber = string.Empty;
+        _editingStatus = "Draft";
+        _editingLines = [];
+        _formSupplierId = null;
+        _formBranchId = null;
+        _formOrderDate = DateTime.UtcNow;
+        _formExpectedDeliveryDate = null;
+        _formNotes = null;
+        ResetLineForm();
+        _showForm = true;
+    }
+
+    private async Task ShowEditFormAsync(long id)
+    {
+        var result = await ApiClient.GetPurchaseOrderByIdAsync(id);
+        if (!result.Success || result.Data is null)
+        {
+            Snackbar.Add(result.Error?.Message ?? "Failed to load purchase order.", Severity.Error);
+            return;
+        }
+
+        var po = result.Data;
+        _editingId = po.Id;
+        _editingPoNumber = po.PoNumber;
+        _editingStatus = po.Status;
+        _editingLines = po.Lines.ToList();
+        _formSupplierId = po.SupplierId;
+        _formBranchId = po.BranchId;
+        _formOrderDate = po.OrderDate;
+        _formExpectedDeliveryDate = po.ExpectedDeliveryDate;
+        _formNotes = po.Notes;
+        ResetLineForm();
+        _showForm = true;
+    }
+
+    private void ResetLineForm()
+    {
+        _lineProductId = null;
+        _lineVariantId = null;
+        _lineQuantity = 0;
+        _lineUnitCost = 0;
+    }
+
+    private void CloseForm() => _showForm = false;
+
+    private void ShowQuickAddProduct()
+    {
+        _qapName = string.Empty;
+        _qapCategoryId = null;
+        _qapBrandId = null;
+        _qapUnitId = null;
+        _qapPrice = 0;
+        _qapCostPrice = null;
+        _qapUseProfitPercent = false;
+        _qapProfitPercent = 0;
+        _showQuickAddProduct = true;
+    }
+
+    private void OnQapCostPriceChanged(decimal? value)
+    {
+        _qapCostPrice = value;
+        RecalculateQapPrice();
+    }
+
+    private void OnQapProfitPercentChanged(decimal value)
+    {
+        _qapProfitPercent = value;
+        RecalculateQapPrice();
+    }
+
+    private void OnQapUseProfitPercentChanged(bool value)
+    {
+        _qapUseProfitPercent = value;
+        if (value)
+            RecalculateQapPrice();
+    }
+
+    /// <summary>
+    /// Markup-over-cost pricing: price = cost + cost * (percent / 100) — e.g. cost 200
+    /// with a 50% profit ratio gives a selling price of 300. Recalculated live whenever
+    /// the cost price or the percent changes while this mode is on.
+    /// </summary>
+    private void RecalculateQapPrice()
+    {
+        if (_qapUseProfitPercent && _qapCostPrice is > 0)
+        {
+            _qapPrice = Math.Round(_qapCostPrice.Value * (1 + _qapProfitPercent / 100m), 2);
+        }
+    }
+
+    private async Task CreateQuickProductAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_qapName))
+        {
+            Snackbar.Add("Product name is required.", Severity.Warning);
+            return;
+        }
+
+        if (_qapUseProfitPercent && (_qapCostPrice is null || _qapCostPrice <= 0))
+        {
+            Snackbar.Add("Cost price is required to calculate the selling price by profit %.", Severity.Warning);
+            return;
+        }
+
+        if (_qapPrice <= 0)
+        {
+            Snackbar.Add("Selling price must be greater than zero.", Severity.Warning);
+            return;
+        }
+
+        _isSavingQuickProduct = true;
+
+        var createResult = await ApiClient.CreateProductAsync(new CreateProductRequest
+        {
+            Name = _qapName,
+            CategoryId = _qapCategoryId,
+            BrandId = _qapBrandId,
+            UnitId = _qapUnitId,
+            ManageStock = true,
+            NotForSelling = false,
+        });
+
+        if (!createResult.Success || createResult.Data is null)
+        {
+            Snackbar.Add(createResult.Error?.Message ?? "Failed to create product.", Severity.Error);
+            _isSavingQuickProduct = false;
+            return;
+        }
+
+        var variantResult = await ApiClient.AddVariantAsync(createResult.Data.Id, new AddVariantRequest
+        {
+            Price = _qapPrice,
+            CostPrice = _qapCostPrice,
+        });
+
+        if (!variantResult.Success || variantResult.Data is null)
+        {
+            Snackbar.Add(variantResult.Error?.Message ?? "Product created, but failed to add its variant.", Severity.Error);
+            _isSavingQuickProduct = false;
+            return;
+        }
+
+        var newProduct = variantResult.Data;
+        _products = [.. _products, newProduct];
+
+        _lineProductId = newProduct.Id;
+        _lineVariantId = newProduct.Variants.OrderByDescending(v => v.Id).FirstOrDefault()?.Id;
+
+        Snackbar.Add("Product created and selected for this line.", Severity.Success);
+        _showQuickAddProduct = false;
+        _isSavingQuickProduct = false;
+    }
+
+    private async Task SaveHeaderAsync()
+    {
+        if (_formSupplierId is null || _formBranchId is null || _formOrderDate is null)
+        {
+            Snackbar.Add("Supplier, branch, and order date are required.", Severity.Warning);
+            return;
+        }
+
+        _isSaving = true;
+
+        if (_editingId is null)
+        {
+            var createResult = await ApiClient.CreatePurchaseOrderAsync(new CreatePurchaseOrderRequest
+            {
+                SupplierId = _formSupplierId.Value,
+                BranchId = _formBranchId.Value,
+                OrderDate = _formOrderDate.Value,
+                ExpectedDeliveryDate = _formExpectedDeliveryDate,
+                Notes = _formNotes,
+            });
+
+            if (createResult.Success && createResult.Data is not null)
+            {
+                Snackbar.Add("Purchase order created — you can now add lines below.", Severity.Success);
+                _editingId = createResult.Data.Id;
+                _editingPoNumber = createResult.Data.PoNumber;
+                _editingStatus = createResult.Data.Status;
+                _editingLines = createResult.Data.Lines.ToList();
+                await LoadAsync();
+            }
+            else
+            {
+                Snackbar.Add(createResult.Error?.Message ?? "Failed to create purchase order.", Severity.Error);
+            }
+        }
+        else
+        {
+            var updateResult = await ApiClient.UpdatePurchaseOrderAsync(_editingId.Value, new UpdatePurchaseOrderRequest
+            {
+                SupplierId = _formSupplierId.Value,
+                BranchId = _formBranchId.Value,
+                OrderDate = _formOrderDate.Value,
+                ExpectedDeliveryDate = _formExpectedDeliveryDate,
+                Notes = _formNotes,
+            });
+
+            if (updateResult.Success)
+            {
+                Snackbar.Add("Purchase order saved.", Severity.Success);
+                await LoadAsync();
+            }
+            else
+            {
+                Snackbar.Add(updateResult.Error?.Message ?? "Failed to save purchase order.", Severity.Error);
+            }
+        }
+
+        _isSaving = false;
+    }
+
+    private async Task AddLineAsync()
+    {
+        if (_editingId is null || _lineProductId is null || _lineVariantId is null)
+        {
+            Snackbar.Add("Select a product and variant first.", Severity.Warning);
+            return;
+        }
+
+        var result = await ApiClient.AddPurchaseOrderLineAsync(_editingId.Value, new AddPurchaseOrderLineRequest
+        {
+            ProductId = _lineProductId.Value,
+            ProductVariantId = _lineVariantId.Value,
+            QuantityOrdered = _lineQuantity,
+            UnitCost = _lineUnitCost,
+        });
+
+        if (result.Success && result.Data is not null)
+        {
+            Snackbar.Add("Line added.", Severity.Success);
+            _editingLines = result.Data.Lines.ToList();
+            ResetLineForm();
+            await LoadAsync();
+        }
+        else
+        {
+            Snackbar.Add(result.Error?.Message ?? "Failed to add line.", Severity.Error);
+        }
+    }
+
+    private async Task RemoveLineAsync(long lineId)
+    {
+        if (_editingId is null) return;
+
+        var result = await ApiClient.RemovePurchaseOrderLineAsync(_editingId.Value, lineId);
+        if (result.Success && result.Data is not null)
+        {
+            Snackbar.Add("Line removed.", Severity.Success);
+            _editingLines = result.Data.Lines.ToList();
+            await LoadAsync();
+        }
+        else
+        {
+            Snackbar.Add(result.Error?.Message ?? "Failed to remove line.", Severity.Error);
+        }
+    }
+
+    private async Task ReceiveLineAsync(long lineId)
+    {
+        if (_editingId is null) return;
+
+        var quantity = GetReceiveDraft(lineId);
+        if (quantity <= 0)
+        {
+            Snackbar.Add("Enter a quantity to receive.", Severity.Warning);
+            return;
+        }
+
+        var result = await ApiClient.ReceivePurchaseOrderLineAsync(_editingId.Value, lineId, new ReceivePurchaseOrderLineRequest { Quantity = quantity });
+        if (result.Success && result.Data is not null)
+        {
+            Snackbar.Add("Received.", Severity.Success);
+            _editingStatus = result.Data.Status;
+            _editingLines = result.Data.Lines.ToList();
+            _receiveDrafts.Remove(lineId);
+            await LoadAsync();
+        }
+        else
+        {
+            Snackbar.Add(result.Error?.Message ?? "Failed to receive quantity.", Severity.Error);
+        }
+    }
+
+    private async Task SubmitAsync()
+    {
+        if (_editingId is null) return;
+
+        var result = await ApiClient.SubmitPurchaseOrderAsync(_editingId.Value);
+        if (result.Success && result.Data is not null)
+        {
+            Snackbar.Add("Purchase order submitted.", Severity.Success);
+            _editingStatus = result.Data.Status;
+            await LoadAsync();
+        }
+        else
+        {
+            Snackbar.Add(result.Error?.Message ?? "Failed to submit purchase order.", Severity.Error);
+        }
+    }
+
+    private async Task CancelPoAsync()
+    {
+        if (_editingId is null) return;
+
+        var result = await ApiClient.CancelPurchaseOrderAsync(_editingId.Value);
+        if (result.Success && result.Data is not null)
+        {
+            Snackbar.Add("Purchase order cancelled.", Severity.Success);
+            _editingStatus = result.Data.Status;
+            await LoadAsync();
+        }
+        else
+        {
+            Snackbar.Add(result.Error?.Message ?? "Failed to cancel purchase order.", Severity.Error);
+        }
+    }
+
+    private async Task DeleteAsync(long id)
+    {
+        var result = await ApiClient.DeletePurchaseOrderAsync(id);
+        if (result.Success)
+        {
+            Snackbar.Add("Purchase order deleted.", Severity.Success);
+            await LoadAsync();
+        }
+        else
+        {
+            Snackbar.Add(result.Error?.Message ?? "Failed to delete purchase order.", Severity.Error);
+        }
+    }
+}

@@ -51,6 +51,8 @@ public static class PermissionCatalog
         new(41, "purchasing.suppliers.edit", "Edit Suppliers", "Purchasing"),
         new(42, "purchasing.orders.view", "View Purchase Orders", "Purchasing"),
         new(43, "purchasing.orders.create", "Create Purchase Orders", "Purchasing"),
+        new(44, "purchasing.orders.edit", "Edit Purchase Orders", "Purchasing"),
+        new(45, "purchasing.orders.receive", "Receive Purchase Orders", "Purchasing"),
 
         // Sales
         new(50, "sales.pos.create", "Use Point of Sale", "Sales"),
