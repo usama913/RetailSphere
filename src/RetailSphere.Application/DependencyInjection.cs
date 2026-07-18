@@ -7,6 +7,7 @@ using RetailSphere.Application.Features.Inventory.Common;
 using RetailSphere.Application.Features.Inventory.StockTransfers.Common;
 using RetailSphere.Application.Features.Products.Common;
 using RetailSphere.Application.Features.PurchaseOrders.Common;
+using RetailSphere.Application.Features.SalesOrders.Common;
 using RetailSphere.Application.Features.Users.Common;
 
 namespace RetailSphere.Application;
@@ -33,6 +34,7 @@ public static class DependencyInjection
         services.AddScoped<PurchaseOrderDtoAssembler>();
         services.AddScoped<StockItemDtoAssembler>();
         services.AddScoped<StockTransferDtoAssembler>();
+        services.AddScoped<SalesOrderDtoAssembler>();
 
         return services;
     }

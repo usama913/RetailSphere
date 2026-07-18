@@ -1,0 +1,307 @@
+@page "/sales/orders"
+@using RetailSphere.Contracts.Admin
+@using RetailSphere.Contracts.Customers
+@using RetailSphere.Contracts.Sales
+@attribute [Authorize]
+@inject IApiClient ApiClient
+@inject AuthenticationStateProvider AuthStateProvider
+@inject ISnackbar Snackbar
+
+<PageTitle>Sales Orders - RetailSphere</PageTitle>
+
+@if (!_canView)
+{
+    <MudAlert Severity="Severity.Warning">You don't have permission to view sales orders.</MudAlert>
+}
+else
+{
+
+<MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween" Class="mb-4">
+    <div>
+        <MudText Typo="Typo.h5">Sales Orders</MudText>
+        <MudText Typo="Typo.body2" Style="color: var(--mud-palette-text-secondary);">History of completed and cancelled Point-of-Sale transactions.</MudText>
+    </div>
+</MudStack>
+
+<MudGrid Class="mb-4">
+    <MudItem xs="12" sm="6" md="3">
+        <MudTextField T="string" Value="@_search" ValueChanged="OnSearchChanged" Label="Order number" Variant="Variant.Outlined"
+                      Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search" Immediate="true" DebounceInterval="300" />
+    </MudItem>
+    <MudItem xs="12" sm="6" md="3">
+        <MudSelect T="long?" Value="_filterBranchId" ValueChanged="OnFilterBranchChangedAsync" Label="Branch" Variant="Variant.Outlined">
+            <MudSelectItem T="long?" Value="@((long?)null)">All branches</MudSelectItem>
+            @foreach (var branch in _branches)
+            {
+                <MudSelectItem T="long?" Value="@((long?)branch.Id)">@branch.Name</MudSelectItem>
+            }
+        </MudSelect>
+    </MudItem>
+    <MudItem xs="12" sm="6" md="3">
+        <MudSelect T="long?" Value="_filterCustomerId" ValueChanged="OnFilterCustomerChangedAsync" Label="Customer" Variant="Variant.Outlined">
+            <MudSelectItem T="long?" Value="@((long?)null)">All customers</MudSelectItem>
+            @foreach (var customer in _customers)
+            {
+                <MudSelectItem T="long?" Value="@((long?)customer.Id)">@customer.Name</MudSelectItem>
+            }
+        </MudSelect>
+    </MudItem>
+    <MudItem xs="12" sm="6" md="3">
+        <MudSelect T="string" Value="_filterStatus" ValueChanged="OnFilterStatusChangedAsync" Label="Status" Variant="Variant.Outlined">
+            <MudSelectItem T="string" Value="@string.Empty">All statuses</MudSelectItem>
+            <MudSelectItem T="string" Value='@("Completed")'>Completed</MudSelectItem>
+            <MudSelectItem T="string" Value='@("Cancelled")'>Cancelled</MudSelectItem>
+        </MudSelect>
+    </MudItem>
+</MudGrid>
+
+<MudTable Items="@_orders" Hover="true" Dense="true" Loading="@_isLoading">
+    <HeaderContent>
+        <MudTh>Order #</MudTh>
+        <MudTh>Date</MudTh>
+        <MudTh>Branch</MudTh>
+        <MudTh>Customer</MudTh>
+        <MudTh>Cashier</MudTh>
+        <MudTh>Payment</MudTh>
+        <MudTh>Total</MudTh>
+        <MudTh>Status</MudTh>
+        <MudTh>Actions</MudTh>
+    </HeaderContent>
+    <RowTemplate>
+        <MudTd DataLabel="Order #">@context.OrderNumber</MudTd>
+        <MudTd DataLabel="Date">@context.OrderDate.ToString("yyyy-MM-dd HH:mm")</MudTd>
+        <MudTd DataLabel="Branch">@(context.BranchName ?? "—")</MudTd>
+        <MudTd DataLabel="Customer">@(context.CustomerName ?? "Walk-in")</MudTd>
+        <MudTd DataLabel="Cashier">@(context.CashierName ?? "—")</MudTd>
+        <MudTd DataLabel="Payment">@context.PaymentMethod</MudTd>
+        <MudTd DataLabel="Total">@context.TotalAmount.ToString("0.00")</MudTd>
+        <MudTd DataLabel="Status">
+            <MudChip T="string" Size="Size.Small" Color="@(context.Status == "Completed" ? Color.Success : Color.Default)">
+                @context.Status
+            </MudChip>
+        </MudTd>
+        <MudTd DataLabel="Actions">
+            <MudIconButton Icon="@Icons.Material.Filled.Visibility" Size="Size.Small" OnClick="@(() => ToggleDetails(context.Id))" />
+            @if (_canCancel && context.Status == "Completed")
+            {
+                <MudIconButton Icon="@Icons.Material.Filled.Cancel" Size="Size.Small" OnClick="@(() => ShowCancelForm(context.Id))" />
+            }
+        </MudTd>
+    </RowTemplate>
+</MudTable>
+
+@if (_expandedOrderId is not null)
+{
+    var expanded = _orders.FirstOrDefault(o => o.Id == _expandedOrderId);
+    if (expanded is not null)
+    {
+        <MudPaper Class="pa-4 mt-2" Elevation="1">
+            <MudText Typo="Typo.subtitle1" Class="mb-2">Lines — @expanded.OrderNumber</MudText>
+            <MudTable Items="@expanded.Lines" Hover="true" Dense="true">
+                <HeaderContent>
+                    <MudTh>SKU</MudTh>
+                    <MudTh>Description</MudTh>
+                    <MudTh>Qty</MudTh>
+                    <MudTh>Unit price</MudTh>
+                    <MudTh>Discount</MudTh>
+                    <MudTh>Tax</MudTh>
+                    <MudTh>Line total</MudTh>
+                </HeaderContent>
+                <RowTemplate>
+                    <MudTd DataLabel="SKU">@context.SkuSnapshot</MudTd>
+                    <MudTd DataLabel="Description">@context.DescriptionSnapshot</MudTd>
+                    <MudTd DataLabel="Qty">@context.Quantity</MudTd>
+                    <MudTd DataLabel="Unit price">@context.UnitPrice.ToString("0.00")</MudTd>
+                    <MudTd DataLabel="Discount">@context.DiscountAmount.ToString("0.00")</MudTd>
+                    <MudTd DataLabel="Tax">@context.TaxAmount.ToString("0.00")</MudTd>
+                    <MudTd DataLabel="Line total">@context.LineTotal.ToString("0.00")</MudTd>
+                </RowTemplate>
+            </MudTable>
+            <MudStack Row="true" Justify="Justify.FlexEnd" Spacing="4" Class="mt-2">
+                <MudText Typo="Typo.body2">Subtotal: @expanded.SubtotalAmount.ToString("0.00")</MudText>
+                <MudText Typo="Typo.body2">Tax: @expanded.TaxAmount.ToString("0.00")</MudText>
+                <MudText Typo="Typo.body2">Order discount: @expanded.OrderDiscountAmount.ToString("0.00")</MudText>
+                <MudText Typo="Typo.body2"><strong>Total: @expanded.TotalAmount.ToString("0.00")</strong></MudText>
+            </MudStack>
+            @if (!string.IsNullOrWhiteSpace(expanded.Notes))
+            {
+                <MudText Typo="Typo.caption" Class="mt-2" Style="display:block;">Notes: @expanded.Notes</MudText>
+            }
+            @if (!string.IsNullOrWhiteSpace(expanded.CancellationReason))
+            {
+                <MudText Typo="Typo.caption" Class="mt-1" Style="display:block; color: var(--mud-palette-error);">Cancelled: @expanded.CancellationReason</MudText>
+            }
+        </MudPaper>
+    }
+}
+
+@if (_showCancelForm)
+{
+    <MudPaper Class="pa-4 mt-2" Elevation="1">
+        <MudText Typo="Typo.h6" Class="mb-2">Cancel Sale</MudText>
+        <MudText Typo="Typo.body2" Class="mb-2" Style="color: var(--mud-palette-text-secondary);">
+            This restores the sold quantity back to stock at the branch it was sold from.
+        </MudText>
+        <MudTextField @bind-Value="_cancelReason" Label="Reason" Variant="Variant.Outlined" Required="true" />
+        <MudStack Row="true" Class="mt-3" Spacing="2">
+            <MudButton Variant="Variant.Filled" Color="Color.Error" OnClick="SubmitCancelAsync" Disabled="@_isCancelling">Confirm Cancellation</MudButton>
+            <MudButton Variant="Variant.Text" OnClick="@(() => _showCancelForm = false)">Close</MudButton>
+        </MudStack>
+    </MudPaper>
+}
+
+<MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.Center" Class="mt-4" Spacing="4">
+    <MudIconButton Icon="@Icons.Material.Filled.ChevronLeft" Disabled="@(_page <= 1)" OnClick="@(() => ChangePageAsync(_page - 1))" />
+    <MudText Typo="Typo.body2">Page @_page of @_totalPages</MudText>
+    <MudIconButton Icon="@Icons.Material.Filled.ChevronRight" Disabled="@(_page >= _totalPages)" OnClick="@(() => ChangePageAsync(_page + 1))" />
+</MudStack>
+
+}
+
+@code {
+    private const int PageSize = 25;
+
+    private IReadOnlyList<SalesOrderDto> _orders = [];
+    private IReadOnlyList<BranchDto> _branches = [];
+    private IReadOnlyList<CustomerDto> _customers = [];
+    private HashSet<string> _permissions = [];
+
+    private bool _isLoading = true;
+    private string _search = string.Empty;
+    private long? _filterBranchId;
+    private long? _filterCustomerId;
+    private string _filterStatus = string.Empty;
+    private int _page = 1;
+    private long _totalCount;
+    private int _totalPages = 1;
+
+    private long? _expandedOrderId;
+
+    private bool _showCancelForm;
+    private long? _cancelOrderId;
+    private string _cancelReason = string.Empty;
+    private bool _isCancelling;
+
+    private bool _canView => _permissions.Contains("sales.orders.view");
+    private bool _canCancel => _permissions.Contains("sales.pos.create");
+
+    protected override async Task OnInitializedAsync()
+    {
+        var state = await AuthStateProvider.GetAuthenticationStateAsync();
+        _permissions = state.User.FindAll("permission").Select(c => c.Value).ToHashSet();
+
+        if (_canView)
+        {
+            var branchesResult = await ApiClient.GetBranchesAsync(includeInactive: true);
+            if (branchesResult.Success && branchesResult.Data is not null)
+                _branches = branchesResult.Data;
+
+            var customersResult = await ApiClient.GetCustomersAsync(includeInactive: true);
+            if (customersResult.Success && customersResult.Data is not null)
+                _customers = customersResult.Data;
+
+            await LoadAsync();
+        }
+        else
+        {
+            _isLoading = false;
+        }
+    }
+
+    private async Task LoadAsync()
+    {
+        _isLoading = true;
+
+        var result = await ApiClient.GetSalesOrdersAsync(
+            _page, PageSize, string.IsNullOrWhiteSpace(_search) ? null : _search, _filterBranchId, _filterCustomerId,
+            string.IsNullOrWhiteSpace(_filterStatus) ? null : _filterStatus);
+
+        if (result.Success && result.Data is not null)
+        {
+            _orders = result.Data.Data;
+            _totalCount = result.Data.TotalCount;
+            _totalPages = Math.Max(1, (int)Math.Ceiling(_totalCount / (double)PageSize));
+        }
+        else
+        {
+            Snackbar.Add(result.Error?.Message ?? "Failed to load sales orders.", Severity.Error);
+        }
+
+        _isLoading = false;
+    }
+
+    private async Task OnSearchChanged(string value)
+    {
+        _search = value;
+        _page = 1;
+        await LoadAsync();
+    }
+
+    private async Task OnFilterBranchChangedAsync(long? value)
+    {
+        _filterBranchId = value;
+        _page = 1;
+        await LoadAsync();
+    }
+
+    private async Task OnFilterCustomerChangedAsync(long? value)
+    {
+        _filterCustomerId = value;
+        _page = 1;
+        await LoadAsync();
+    }
+
+    private async Task OnFilterStatusChangedAsync(string value)
+    {
+        _filterStatus = value;
+        _page = 1;
+        await LoadAsync();
+    }
+
+    private async Task ChangePageAsync(int newPage)
+    {
+        _page = newPage;
+        await LoadAsync();
+    }
+
+    private void ToggleDetails(long orderId)
+    {
+        _expandedOrderId = _expandedOrderId == orderId ? null : orderId;
+    }
+
+    private void ShowCancelForm(long orderId)
+    {
+        _cancelOrderId = orderId;
+        _cancelReason = string.Empty;
+        _showCancelForm = true;
+    }
+
+    private async Task SubmitCancelAsync()
+    {
+        if (_cancelOrderId is null)
+            return;
+
+        if (string.IsNullOrWhiteSpace(_cancelReason))
+        {
+            Snackbar.Add("A reason is required.", Severity.Warning);
+            return;
+        }
+
+        _isCancelling = true;
+
+        var result = await ApiClient.CancelSalesOrderAsync(_cancelOrderId.Value, new CancelSalesOrderRequest { Reason = _cancelReason });
+
+        if (result.Success)
+        {
+            Snackbar.Add("Sale cancelled and stock restored.", Severity.Success);
+            _showCancelForm = false;
+            await LoadAsync();
+        }
+        else
+        {
+            Snackbar.Add(result.Error?.Message ?? "Failed to cancel sale.", Severity.Error);
+        }
+
+        _isCancelling = false;
+    }
+}

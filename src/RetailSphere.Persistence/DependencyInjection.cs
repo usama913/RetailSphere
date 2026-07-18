@@ -9,6 +9,7 @@ using RetailSphere.Domain.IdentityAccess;
 using RetailSphere.Domain.Inventory;
 using RetailSphere.Domain.Organization;
 using RetailSphere.Domain.Purchasing;
+using RetailSphere.Domain.Sales;
 using RetailSphere.Persistence.Interceptors;
 using RetailSphere.Persistence.Repositories;
 
@@ -54,6 +55,7 @@ public static class DependencyInjection
         services.AddScoped<IStockItemRepository, StockItemRepository>();
         services.AddScoped<IStockTransferRepository, StockTransferRepository>();
         services.AddScoped<ICustomerRepository, CustomerRepository>();
+        services.AddScoped<ISalesOrderRepository, SalesOrderRepository>();
 
         return services;
     }

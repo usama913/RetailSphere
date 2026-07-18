@@ -1,0 +1,478 @@
+@page "/sales/pos"
+@using RetailSphere.Contracts.Admin
+@using RetailSphere.Contracts.Catalog
+@using RetailSphere.Contracts.Customers
+@using RetailSphere.Contracts.Sales
+@attribute [Authorize]
+@inject IApiClient ApiClient
+@inject AuthenticationStateProvider AuthStateProvider
+@inject ISnackbar Snackbar
+
+<PageTitle>Point of Sale - RetailSphere</PageTitle>
+
+@if (!_canUse)
+{
+    <MudAlert Severity="Severity.Warning">You don't have permission to use Point of Sale.</MudAlert>
+}
+else
+{
+
+<MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween" Class="mb-4">
+    <div>
+        <MudText Typo="Typo.h5">Point of Sale</MudText>
+        <MudText Typo="Typo.body2" Style="color: var(--mud-palette-text-secondary);">Ring up a sale and check out.</MudText>
+    </div>
+    <div style="min-width:220px">
+        <MudSelect T="long?" Value="_branchId" ValueChanged="OnBranchChangedAsync" Label="Branch" Variant="Variant.Outlined" Margin="Margin.Dense">
+            @foreach (var branch in _branches)
+            {
+                <MudSelectItem T="long?" Value="@((long?)branch.Id)">@branch.Name</MudSelectItem>
+            }
+        </MudSelect>
+    </div>
+</MudStack>
+
+@if (_lastCompletedOrder is not null)
+{
+    <MudAlert Severity="Severity.Success" Class="mb-4" ContentAlignment="HorizontalAlignment.Left">
+        <MudText Typo="Typo.subtitle1"><strong>Sale completed — @_lastCompletedOrder.OrderNumber</strong></MudText>
+        <MudText Typo="Typo.body2">Total: @_lastCompletedOrder.TotalAmount.ToString("0.00") · Paid: @_lastCompletedOrder.AmountPaid.ToString("0.00") · Change due: @_lastCompletedOrder.ChangeDue.ToString("0.00")</MudText>
+        <MudButton Variant="Variant.Text" Size="Size.Small" Class="mt-1" OnClick="@(() => _lastCompletedOrder = null)">Dismiss</MudButton>
+    </MudAlert>
+}
+
+<MudGrid>
+    <MudItem xs="12" md="8">
+        <MudPaper Class="pa-4 mb-4" Elevation="1">
+            <MudTextField T="string" Value="@_searchTerm" ValueChanged="OnSearchChanged" Label="Search products by name, SKU, or barcode"
+                          Variant="Variant.Outlined" Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search"
+                          Immediate="true" DebounceInterval="150" Placeholder="Start typing to find an item…" />
+
+            @if (!string.IsNullOrWhiteSpace(_searchTerm))
+            {
+                @if (GetSearchResults().Count == 0)
+                {
+                    <MudText Typo="Typo.body2" Class="mt-2" Style="color: var(--mud-palette-text-secondary);">No matching items.</MudText>
+                }
+                else
+                {
+                    <MudTable Items="@GetSearchResults()" Hover="true" Dense="true" Class="mt-2">
+                        <HeaderContent>
+                            <MudTh>Product</MudTh>
+                            <MudTh>Variant</MudTh>
+                            <MudTh>SKU</MudTh>
+                            <MudTh>Price</MudTh>
+                            <MudTh>Available</MudTh>
+                            <MudTh></MudTh>
+                        </HeaderContent>
+                        <RowTemplate>
+                            <MudTd DataLabel="Product">@context.Product.Name</MudTd>
+                            <MudTd DataLabel="Variant">@GetAttributeLabel(context.Variant)</MudTd>
+                            <MudTd DataLabel="SKU">@context.Variant.Sku</MudTd>
+                            <MudTd DataLabel="Price">@context.Variant.Price.ToString("0.00")</MudTd>
+                            <MudTd DataLabel="Available">@GetAvailableQty(context.Variant.Id).ToString("0.###")</MudTd>
+                            <MudTd>
+                                <MudButton Variant="Variant.Filled" Color="Color.Primary" Size="Size.Small" OnClick="@(() => AddToCart(context.Product, context.Variant))">
+                                    Add
+                                </MudButton>
+                            </MudTd>
+                        </RowTemplate>
+                    </MudTable>
+                }
+            }
+        </MudPaper>
+
+        <MudPaper Class="pa-4" Elevation="1">
+            <MudText Typo="Typo.h6" Class="mb-2">Cart</MudText>
+            @if (_cart.Count == 0)
+            {
+                <MudText Typo="Typo.body2" Style="color: var(--mud-palette-text-secondary);">Search for an item above to add it to the cart.</MudText>
+            }
+            else
+            {
+                <MudTable Items="@_cart" Hover="true" Dense="true">
+                    <HeaderContent>
+                        <MudTh>Item</MudTh>
+                        <MudTh>Qty</MudTh>
+                        <MudTh>Unit price</MudTh>
+                        <MudTh>Discount</MudTh>
+                        <MudTh>Line total</MudTh>
+                        <MudTh></MudTh>
+                    </HeaderContent>
+                    <RowTemplate>
+                        <MudTd DataLabel="Item">
+                            <MudText Typo="Typo.body2">@context.Description</MudText>
+                            <MudText Typo="Typo.caption" Style="color: var(--mud-palette-text-secondary);">@context.Sku</MudText>
+                        </MudTd>
+                        <MudTd DataLabel="Qty">
+                            <MudNumericField T="decimal" Value="@context.Quantity" ValueChanged="@(v => SetCartQuantity(context, v))"
+                                              Variant="Variant.Outlined" Margin="Margin.Dense" Min="0.001M" Style="width:90px" />
+                        </MudTd>
+                        <MudTd DataLabel="Unit price">@context.UnitPrice.ToString("0.00")</MudTd>
+                        <MudTd DataLabel="Discount">
+                            <MudNumericField T="decimal" Value="@context.DiscountAmount" ValueChanged="@(v => SetCartDiscount(context, v))"
+                                              Variant="Variant.Outlined" Margin="Margin.Dense" Min="0" Style="width:90px" />
+                        </MudTd>
+                        <MudTd DataLabel="Line total">@GetLineTotal(context).ToString("0.00")</MudTd>
+                        <MudTd>
+                            <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" OnClick="@(() => RemoveFromCart(context))" />
+                        </MudTd>
+                    </RowTemplate>
+                </MudTable>
+            }
+        </MudPaper>
+    </MudItem>
+
+    <MudItem xs="12" md="4">
+        <MudPaper Class="pa-4 mb-4" Elevation="1">
+            <MudText Typo="Typo.h6" Class="mb-2">Customer</MudText>
+            <MudSelect T="long?" @bind-Value="_customerId" Label="Customer" Variant="Variant.Outlined" Margin="Margin.Dense">
+                <MudSelectItem T="long?" Value="@((long?)null)">Walk-in customer</MudSelectItem>
+                @foreach (var customer in _customers)
+                {
+                    <MudSelectItem T="long?" Value="@((long?)customer.Id)">@customer.Name@(string.IsNullOrWhiteSpace(customer.Phone) ? "" : $" ({customer.Phone})")</MudSelectItem>
+                }
+            </MudSelect>
+            <MudButton Variant="Variant.Text" Size="Size.Small" Class="mt-1" OnClick="@(() => _showQuickAddCustomer = !_showQuickAddCustomer)">
+                + New customer
+            </MudButton>
+
+            @if (_showQuickAddCustomer)
+            {
+                <MudPaper Class="pa-3 mt-2" Elevation="0" Style="border: 1px solid var(--mud-palette-table-lines);">
+                    <MudTextField @bind-Value="_qacName" Label="Name" Variant="Variant.Outlined" Margin="Margin.Dense" Required="true" />
+                    <MudTextField @bind-Value="_qacPhone" Label="Phone" Variant="Variant.Outlined" Margin="Margin.Dense" Class="mt-2" />
+                    <MudTextField @bind-Value="_qacEmail" Label="Email" Variant="Variant.Outlined" Margin="Margin.Dense" Class="mt-2" />
+                    <MudButton Variant="Variant.Filled" Color="Color.Primary" Size="Size.Small" Class="mt-2" OnClick="CreateQuickCustomerAsync" Disabled="@_isSavingQuickCustomer">
+                        Save Customer
+                    </MudButton>
+                </MudPaper>
+            }
+        </MudPaper>
+
+        <MudPaper Class="pa-4" Elevation="1">
+            <MudText Typo="Typo.h6" Class="mb-2">Payment</MudText>
+
+            <MudSelect T="string" @bind-Value="_paymentMethod" Label="Payment method" Variant="Variant.Outlined" Margin="Margin.Dense">
+                @foreach (var method in PaymentMethods)
+                {
+                    <MudSelectItem T="string" Value="@method">@method</MudSelectItem>
+                }
+            </MudSelect>
+
+            <MudNumericField @bind-Value="_orderDiscountAmount" Label="Order discount" Variant="Variant.Outlined" Margin="Margin.Dense" Min="0" Class="mt-2" />
+
+            <MudDivider Class="my-3" />
+            <MudStack Spacing="1">
+                <MudStack Row="true" Justify="Justify.SpaceBetween"><MudText Typo="Typo.body2">Subtotal</MudText><MudText Typo="Typo.body2">@GetSubtotal().ToString("0.00")</MudText></MudStack>
+                <MudStack Row="true" Justify="Justify.SpaceBetween"><MudText Typo="Typo.body2">Tax</MudText><MudText Typo="Typo.body2">@GetTaxTotal().ToString("0.00")</MudText></MudStack>
+                <MudStack Row="true" Justify="Justify.SpaceBetween"><MudText Typo="Typo.subtitle1"><strong>Total</strong></MudText><MudText Typo="Typo.subtitle1"><strong>@GetTotal().ToString("0.00")</strong></MudText></MudStack>
+            </MudStack>
+            <MudDivider Class="my-3" />
+
+            <MudNumericField @bind-Value="_amountPaid" Label="Amount paid" Variant="Variant.Outlined" Margin="Margin.Dense" Min="0" />
+            <MudStack Row="true" Justify="Justify.SpaceBetween" Class="mt-2">
+                <MudText Typo="Typo.body2">Change due</MudText>
+                <MudText Typo="Typo.body2">@GetChangeDue().ToString("0.00")</MudText>
+            </MudStack>
+
+            <MudTextField @bind-Value="_notes" Label="Notes (optional)" Variant="Variant.Outlined" Margin="Margin.Dense" Class="mt-2" Lines="2" />
+
+            <MudButton Variant="Variant.Filled" Color="Color.Success" FullWidth="true" Class="mt-3" Size="Size.Large"
+                       OnClick="CheckoutAsync" Disabled="@(_isCheckingOut || _cart.Count == 0 || _branchId is null)">
+                Checkout
+            </MudButton>
+        </MudPaper>
+    </MudItem>
+</MudGrid>
+
+}
+
+@code {
+    private sealed class CartLine
+    {
+        public required long ProductId { get; init; }
+        public required long ProductVariantId { get; init; }
+        public required string Sku { get; init; }
+        public required string Description { get; init; }
+        public required decimal UnitPrice { get; init; }
+        public required decimal TaxRate { get; init; }
+        public required string TaxType { get; init; }
+        public decimal Quantity { get; set; } = 1;
+        public decimal DiscountAmount { get; set; }
+    }
+
+    private static readonly IReadOnlyList<string> PaymentMethods = ["Cash", "Card"];
+
+    // Bulk-fetched once per branch change — same simplification as the Inventory
+    // Overview/Branch Stock summary cards (client-side search over a capped fetch
+    // rather than a dedicated server-side product-search endpoint).
+    private const int BulkFetchLimit = 2000;
+
+    private IReadOnlyList<BranchDto> _branches = [];
+    private IReadOnlyList<ProductDto> _products = [];
+    private IReadOnlyList<ProductAttributeDto> _attributes = [];
+    private IReadOnlyList<CustomerDto> _customers = [];
+    private Dictionary<long, decimal> _stockByVariant = new();
+    private HashSet<string> _permissions = [];
+
+    private long? _branchId;
+    private string _searchTerm = string.Empty;
+    private readonly List<CartLine> _cart = [];
+
+    private long? _customerId;
+    private bool _showQuickAddCustomer;
+    private bool _isSavingQuickCustomer;
+    private string _qacName = string.Empty;
+    private string? _qacPhone;
+    private string? _qacEmail;
+
+    private string _paymentMethod = "Cash";
+    private decimal _orderDiscountAmount;
+    private decimal _amountPaid;
+    private string? _notes;
+    private bool _isCheckingOut;
+    private SalesOrderDto? _lastCompletedOrder;
+
+    private bool _canUse => _permissions.Contains("sales.pos.create");
+
+    protected override async Task OnInitializedAsync()
+    {
+        var state = await AuthStateProvider.GetAuthenticationStateAsync();
+        _permissions = state.User.FindAll("permission").Select(c => c.Value).ToHashSet();
+
+        if (!_canUse)
+            return;
+
+        var branchesResult = await ApiClient.GetBranchesAsync(includeInactive: false);
+        if (branchesResult.Success && branchesResult.Data is not null)
+            _branches = branchesResult.Data;
+
+        var productsResult = await ApiClient.GetProductsAsync(1, BulkFetchLimit);
+        if (productsResult.Success && productsResult.Data is not null)
+            _products = productsResult.Data.Data.Where(p => p.IsActive && !p.NotForSelling).ToList();
+
+        var attributesResult = await ApiClient.GetProductAttributesAsync();
+        if (attributesResult.Success && attributesResult.Data is not null)
+            _attributes = attributesResult.Data;
+
+        await LoadCustomersAsync();
+
+        var branchClaim = state.User.FindFirst("branch_id")?.Value;
+        _branchId = long.TryParse(branchClaim, out var claimedBranchId) && _branches.Any(b => b.Id == claimedBranchId)
+            ? claimedBranchId
+            : _branches.FirstOrDefault()?.Id;
+
+        await LoadStockAsync();
+    }
+
+    private async Task LoadCustomersAsync()
+    {
+        var customersResult = await ApiClient.GetCustomersAsync(includeInactive: false);
+        if (customersResult.Success && customersResult.Data is not null)
+            _customers = customersResult.Data;
+    }
+
+    private async Task LoadStockAsync()
+    {
+        _stockByVariant = new Dictionary<long, decimal>();
+        if (_branchId is null)
+            return;
+
+        var stockResult = await ApiClient.GetStockItemsAsync(1, BulkFetchLimit, _branchId.Value);
+        if (stockResult.Success && stockResult.Data is not null)
+            _stockByVariant = stockResult.Data.Data.ToDictionary(s => s.ProductVariantId, s => s.QuantityOnHand);
+    }
+
+    private async Task OnBranchChangedAsync(long? branchId)
+    {
+        _branchId = branchId;
+        await LoadStockAsync();
+    }
+
+    private void OnSearchChanged(string value) => _searchTerm = value;
+
+    private decimal GetAvailableQty(long variantId) => _stockByVariant.TryGetValue(variantId, out var qty) ? qty : 0;
+
+    private List<(ProductDto Product, ProductVariantDto Variant)> GetSearchResults()
+    {
+        if (string.IsNullOrWhiteSpace(_searchTerm))
+            return [];
+
+        var term = _searchTerm.Trim();
+
+        return _products
+            .SelectMany(p => p.Variants.Where(v => v.IsActive).Select(v => (Product: p, Variant: v)))
+            .Where(x =>
+                x.Product.Name.Contains(term, StringComparison.InvariantCultureIgnoreCase)
+                || x.Variant.Sku.Contains(term, StringComparison.InvariantCultureIgnoreCase)
+                || (x.Variant.Barcode?.Contains(term, StringComparison.InvariantCultureIgnoreCase) ?? false))
+            .Take(20)
+            .ToList();
+    }
+
+    /// <summary>Joins a variant's AttributeValueIds back to their owning attribute's Name/Value — mirrors Products.razor's GetVariantAttributeLabel.</summary>
+    private string GetAttributeLabel(ProductVariantDto variant)
+    {
+        if (variant.AttributeValueIds.Count == 0)
+            return "—";
+
+        var parts = new List<string>();
+        foreach (var attribute in _attributes)
+        {
+            var matched = attribute.Values
+                .Where(v => variant.AttributeValueIds.Contains(v.Id))
+                .Select(v => v.Value)
+                .ToList();
+
+            if (matched.Count > 0)
+                parts.Add($"{attribute.Name}: {string.Join(", ", matched)}");
+        }
+
+        return parts.Count > 0 ? string.Join(" · ", parts) : "—";
+    }
+
+    private void AddToCart(ProductDto product, ProductVariantDto variant)
+    {
+        var existing = _cart.FirstOrDefault(c => c.ProductVariantId == variant.Id);
+        if (existing is not null)
+        {
+            existing.Quantity += 1;
+            return;
+        }
+
+        var attributeLabel = GetAttributeLabel(variant);
+        var description = attributeLabel == "—" ? product.Name : $"{product.Name} — {attributeLabel}";
+
+        _cart.Add(new CartLine
+        {
+            ProductId = product.Id,
+            ProductVariantId = variant.Id,
+            Sku = variant.Sku,
+            Description = description,
+            UnitPrice = variant.Price,
+            TaxRate = variant.TaxRate,
+            TaxType = variant.TaxType,
+            Quantity = 1,
+            DiscountAmount = 0,
+        });
+    }
+
+    private void SetCartQuantity(CartLine line, decimal value) => line.Quantity = value < 0 ? 0 : value;
+
+    private void SetCartDiscount(CartLine line, decimal value) => line.DiscountAmount = value < 0 ? 0 : value;
+
+    private void RemoveFromCart(CartLine line) => _cart.Remove(line);
+
+    /// <summary>Client-side preview only — the server independently recomputes tax/totals from the catalog at checkout (see CreateSalesOrderCommandHandler).</summary>
+    private decimal GetLineTaxAmount(CartLine line) => line.TaxType == "Inclusive"
+        ? (line.UnitPrice * line.Quantity) - (line.UnitPrice * line.Quantity / (1 + line.TaxRate / 100m))
+        : line.UnitPrice * line.Quantity * line.TaxRate / 100m;
+
+    private decimal GetLineTotal(CartLine line) => line.TaxType == "Inclusive"
+        ? (line.UnitPrice * line.Quantity) - line.DiscountAmount
+        : (line.UnitPrice * line.Quantity) + GetLineTaxAmount(line) - line.DiscountAmount;
+
+    private decimal GetSubtotal() => _cart.Sum(l => l.UnitPrice * l.Quantity);
+
+    private decimal GetTaxTotal() => _cart.Sum(GetLineTaxAmount);
+
+    private decimal GetTotal() => Math.Max(0, _cart.Sum(GetLineTotal) - _orderDiscountAmount);
+
+    private decimal GetChangeDue() => Math.Max(0, _amountPaid - GetTotal());
+
+    private async Task CreateQuickCustomerAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_qacName))
+        {
+            Snackbar.Add("Customer name is required.", Severity.Warning);
+            return;
+        }
+
+        _isSavingQuickCustomer = true;
+
+        var result = await ApiClient.CreateCustomerAsync(new CreateCustomerRequest
+        {
+            Name = _qacName,
+            Phone = _qacPhone,
+            Email = _qacEmail,
+        });
+
+        if (result.Success && result.Data is not null)
+        {
+            await LoadCustomersAsync();
+            _customerId = result.Data.Id;
+            _showQuickAddCustomer = false;
+            _qacName = string.Empty;
+            _qacPhone = null;
+            _qacEmail = null;
+            Snackbar.Add("Customer added.", Severity.Success);
+        }
+        else
+        {
+            Snackbar.Add(result.Error?.Message ?? "Failed to add customer.", Severity.Error);
+        }
+
+        _isSavingQuickCustomer = false;
+    }
+
+    private async Task CheckoutAsync()
+    {
+        if (_branchId is null)
+        {
+            Snackbar.Add("Select a branch.", Severity.Warning);
+            return;
+        }
+
+        if (_cart.Count == 0)
+        {
+            Snackbar.Add("Add at least one item to the cart.", Severity.Warning);
+            return;
+        }
+
+        if (_amountPaid < GetTotal())
+        {
+            Snackbar.Add("Amount paid is less than the total.", Severity.Warning);
+            return;
+        }
+
+        _isCheckingOut = true;
+
+        var request = new CreateSalesOrderRequest
+        {
+            BranchId = _branchId.Value,
+            CustomerId = _customerId,
+            PaymentMethod = _paymentMethod,
+            OrderDiscountAmount = _orderDiscountAmount,
+            AmountPaid = _amountPaid,
+            Notes = _notes,
+            Lines = _cart.Select(c => new CreateSalesOrderLineRequest
+            {
+                ProductId = c.ProductId,
+                ProductVariantId = c.ProductVariantId,
+                Quantity = c.Quantity,
+                DiscountAmount = c.DiscountAmount,
+            }).ToList(),
+        };
+
+        var result = await ApiClient.CreateSalesOrderAsync(request);
+
+        if (result.Success && result.Data is not null)
+        {
+            Snackbar.Add($"Sale completed — {result.Data.OrderNumber}.", Severity.Success);
+            _lastCompletedOrder = result.Data;
+            _cart.Clear();
+            _customerId = null;
+            _orderDiscountAmount = 0;
+            _amountPaid = 0;
+            _notes = null;
+            await LoadStockAsync();
+        }
+        else
+        {
+            Snackbar.Add(result.Error?.Message ?? "Checkout failed.", Severity.Error);
+        }
+
+        _isCheckingOut = false;
+    }
+}

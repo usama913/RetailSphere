@@ -11,7 +11,7 @@ namespace RetailSphere.Domain.Inventory;
 public sealed class StockAdjustment : Entity<long>, IAuditableEntity
 {
     /// <summary>Where a quantity change came from — a fixed, known set (same string-array pattern as ProductVariant.BarcodeTypes/TaxTypes and PurchaseOrder.Statuses).</summary>
-    public static readonly IReadOnlyList<string> Sources = ["Initial", "Manual", "PurchaseOrderReceipt", "StockTransferOut", "StockTransferIn"];
+    public static readonly IReadOnlyList<string> Sources = ["Initial", "Manual", "PurchaseOrderReceipt", "StockTransferOut", "StockTransferIn", "Sale", "SalesCancelled"];
 
     public long StockItemId { get; private set; }
 

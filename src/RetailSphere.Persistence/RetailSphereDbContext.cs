@@ -9,6 +9,7 @@ using RetailSphere.Domain.IdentityAccess;
 using RetailSphere.Domain.Inventory;
 using RetailSphere.Domain.Organization;
 using RetailSphere.Domain.Purchasing;
+using RetailSphere.Domain.Sales;
 using RetailSphere.SharedKernel;
 
 namespace RetailSphere.Persistence;
@@ -45,6 +46,8 @@ public sealed class RetailSphereDbContext(DbContextOptions<RetailSphereDbContext
     public DbSet<StockTransfer> StockTransfers => Set<StockTransfer>();
 
     public DbSet<Customer> Customers => Set<Customer>();
+
+    public DbSet<SalesOrder> SalesOrders => Set<SalesOrder>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

@@ -39,13 +39,11 @@ public sealed class RetailSphereApiFactory : WebApplicationFactory<Program>, IAs
         _tempDirectory = Directory.CreateTempSubdirectory("retailsphere-tests-").FullName;
         GenerateTestRsaKeyPair(_tempDirectory);
 
-        // Phase 0 has no EF Core migrations yet (no SDK was available in the scaffolding
-        // environment to generate the initial one) — EnsureCreatedAsync builds the schema
-        // straight from the current model so tests aren't blocked on that. Switch this to
-        // `dbContext.Database.MigrateAsync()` once the first migration exists.
+        // Applies every EF Core migration against the fresh Testcontainers database,
+        // matching how Program.cs now bootstraps schema at real startup.
         using var scope = Services.CreateScope();
         var dbContext = scope.ServiceProvider.GetRequiredService<RetailSphereDbContext>();
-        await dbContext.Database.EnsureCreatedAsync();
+        await dbContext.Database.MigrateAsync();
     }
 
     public new async Task DisposeAsync()
