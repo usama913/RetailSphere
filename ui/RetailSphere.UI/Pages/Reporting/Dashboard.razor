@@ -1,0 +1,391 @@
+@page "/reporting/dashboard"
+@using RetailSphere.Contracts.Customers
+@using RetailSphere.Contracts.Purchasing
+@using RetailSphere.Contracts.Reporting
+@using RetailSphere.Contracts.Sales
+@attribute [Authorize]
+@inject IApiClient ApiClient
+@inject AuthenticationStateProvider AuthStateProvider
+@inject ISnackbar Snackbar
+@inject NavigationManager NavigationManager
+
+<PageTitle>Reports - RetailSphere</PageTitle>
+
+@if (!_canView)
+{
+    <MudAlert Severity="Severity.Warning">You don't have permission to view reports.</MudAlert>
+}
+else
+{
+
+<MudText Typo="Typo.h5" Class="mb-1">Reports</MudText>
+<MudText Typo="Typo.body2" Class="mb-4" Style="color: var(--mud-palette-text-secondary);">
+    Accounts Payable and Accounts Receivable reporting — cash position, purchase and sales history, outstanding balances, payment history, and aging.
+</MudText>
+
+<MudTabs Elevation="0" Rounded="true" ApplyEffectsToContainer="true" PanelClass="pa-4">
+    <MudTabPanel Text="Overview">
+        @if (_summary is null)
+        {
+            <MudProgressLinear Indeterminate="true" />
+        }
+        else
+        {
+            <MudGrid>
+                <MudItem xs="12" sm="6" md="3"><KpiCard Title="Total Payable (A/P)" Value="@_summary.AccountsPayable.ToString("0.00")" Icon="@Icons.Material.Filled.RequestQuote" AccentColor="Color.Error" /></MudItem>
+                <MudItem xs="12" sm="6" md="3"><KpiCard Title="Total Receivable (A/R)" Value="@_summary.AccountsReceivable.ToString("0.00")" Icon="@Icons.Material.Filled.AccountBalance" AccentColor="Color.Info" /></MudItem>
+                <MudItem xs="12" sm="6" md="3"><KpiCard Title="Overdue Payable" Value="@_summary.OverdueSupplierAmount.ToString("0.00")" Icon="@Icons.Material.Filled.ErrorOutline" AccentColor="Color.Warning" /></MudItem>
+                <MudItem xs="12" sm="6" md="3"><KpiCard Title="Overdue Receivable" Value="@_summary.OverdueCustomerAmount.ToString("0.00")" Icon="@Icons.Material.Filled.ErrorOutline" AccentColor="Color.Warning" /></MudItem>
+                <MudItem xs="12" sm="6" md="3"><KpiCard Title="Today's Collections" Value="@_summary.TodaysCollections.ToString("0.00")" Icon="@Icons.Material.Filled.Payments" AccentColor="Color.Success" /></MudItem>
+                <MudItem xs="12" sm="6" md="3"><KpiCard Title="Today's Supplier Payments" Value="@_summary.TodaysSupplierPayments.ToString("0.00")" Icon="@Icons.Material.Filled.Payment" AccentColor="Color.Secondary" /></MudItem>
+                <MudItem xs="12" sm="6" md="3"><KpiCard Title="Net Cash Flow Today" Value="@_summary.NetCashFlowToday.ToString("0.00")" Icon="@Icons.Material.Filled.TrendingUp" AccentColor="@(_summary.NetCashFlowToday >= 0 ? Color.Success : Color.Error)" /></MudItem>
+                <MudItem xs="12" sm="6" md="3"><KpiCard Title="Overdue Invoices (Supplier / Customer)" Value="@($"{_summary.OverdueSupplierInvoiceCount} / {_summary.OverdueCustomerInvoiceCount}")" Icon="@Icons.Material.Filled.EventBusy" AccentColor="Color.Warning" /></MudItem>
+            </MudGrid>
+            <MudText Typo="Typo.caption" Class="mt-2" Style="color: var(--mud-palette-text-secondary);">Generated @_summary.GeneratedAtUtc.ToLocalTime().ToString("g")</MudText>
+        }
+    </MudTabPanel>
+
+    <MudTabPanel Text="Supplier Reports">
+        <MudGrid Class="mb-3">
+            <MudItem xs="12" sm="6" md="4">
+                <MudSelect T="long?" Value="_supplierId" ValueChanged="OnSupplierFilterChangedAsync" Label="Supplier" Variant="Variant.Outlined" Margin="Margin.Dense">
+                    <MudSelectItem T="long?" Value="@((long?)null)">All suppliers</MudSelectItem>
+                    @foreach (var supplier in _suppliers)
+                    {
+                        <MudSelectItem T="long?" Value="@((long?)supplier.Id)">@supplier.Name</MudSelectItem>
+                    }
+                </MudSelect>
+            </MudItem>
+            <MudItem xs="12" sm="3" md="2">
+                <MudDatePicker Date="_supplierFromDate" DateChanged="OnSupplierFromDateChangedAsync" Label="From" Variant="Variant.Outlined" Margin="Margin.Dense" />
+            </MudItem>
+            <MudItem xs="12" sm="3" md="2">
+                <MudDatePicker Date="_supplierToDate" DateChanged="OnSupplierToDateChangedAsync" Label="To" Variant="Variant.Outlined" Margin="Margin.Dense" />
+            </MudItem>
+            <MudItem xs="12" md="4" Class="d-flex align-center justify-end">
+                <MudButton Variant="Variant.Outlined" Size="Size.Small" StartIcon="@Icons.Material.Filled.MenuBook" OnClick="@(() => NavigationManager.NavigateTo("purchasing/supplier-ledger"))">Ledger &amp; Aging</MudButton>
+            </MudItem>
+        </MudGrid>
+
+        <MudTabs Elevation="0" Rounded="true" PanelClass="pt-3">
+            <MudTabPanel Text="Purchase History">
+                <MudTable Items="@_purchaseHistory" Hover="true" Dense="true" Loading="@_isLoadingSupplier">
+                    <HeaderContent>
+                        <MudTh>Invoice #</MudTh>
+                        <MudTh>Supplier</MudTh>
+                        <MudTh>Invoice date</MudTh>
+                        <MudTh>Due date</MudTh>
+                        <MudTh>Total</MudTh>
+                        <MudTh>Paid</MudTh>
+                        <MudTh>Outstanding</MudTh>
+                        <MudTh>Status</MudTh>
+                    </HeaderContent>
+                    <RowTemplate>
+                        <MudTd DataLabel="Invoice #">@context.SupplierInvoiceNumber</MudTd>
+                        <MudTd DataLabel="Supplier">@context.SupplierName</MudTd>
+                        <MudTd DataLabel="Invoice date">@context.InvoiceDate.ToString("yyyy-MM-dd")</MudTd>
+                        <MudTd DataLabel="Due date">@context.DueDate.ToString("yyyy-MM-dd")</MudTd>
+                        <MudTd DataLabel="Total">@context.TotalAmount.ToString("0.00")</MudTd>
+                        <MudTd DataLabel="Paid">@context.AmountPaid.ToString("0.00")</MudTd>
+                        <MudTd DataLabel="Outstanding">@context.OutstandingBalance.ToString("0.00")</MudTd>
+                        <MudTd DataLabel="Status">@context.PaymentStatus</MudTd>
+                    </RowTemplate>
+                    <NoRecordsContent>No purchase invoices for this filter.</NoRecordsContent>
+                </MudTable>
+            </MudTabPanel>
+
+            <MudTabPanel Text="Outstanding Payables">
+                <MudTable Items="@_purchaseHistory.Where(i => i.OutstandingBalance > 0).OrderBy(i => i.DueDate)" Hover="true" Dense="true" Loading="@_isLoadingSupplier">
+                    <HeaderContent>
+                        <MudTh>Invoice #</MudTh>
+                        <MudTh>Supplier</MudTh>
+                        <MudTh>Due date</MudTh>
+                        <MudTh>Outstanding</MudTh>
+                        <MudTh>Status</MudTh>
+                    </HeaderContent>
+                    <RowTemplate>
+                        <MudTd DataLabel="Invoice #">@context.SupplierInvoiceNumber</MudTd>
+                        <MudTd DataLabel="Supplier">@context.SupplierName</MudTd>
+                        <MudTd DataLabel="Due date">@context.DueDate.ToString("yyyy-MM-dd")</MudTd>
+                        <MudTd DataLabel="Outstanding">@context.OutstandingBalance.ToString("0.00")</MudTd>
+                        <MudTd DataLabel="Status">
+                            <MudChip T="string" Size="Size.Small" Color="@(context.PaymentStatus == "Overdue" ? Color.Error : Color.Warning)">@context.PaymentStatus</MudChip>
+                        </MudTd>
+                    </RowTemplate>
+                    <NoRecordsContent>Nothing outstanding for this filter.</NoRecordsContent>
+                </MudTable>
+            </MudTabPanel>
+
+            <MudTabPanel Text="Payment History">
+                <MudTable Items="@_supplierPayments" Hover="true" Dense="true" Loading="@_isLoadingSupplier">
+                    <HeaderContent>
+                        <MudTh>Date</MudTh>
+                        <MudTh>Supplier</MudTh>
+                        <MudTh>Invoice #</MudTh>
+                        <MudTh>Amount</MudTh>
+                        <MudTh>Method</MudTh>
+                        <MudTh>Reference</MudTh>
+                        <MudTh>Status</MudTh>
+                    </HeaderContent>
+                    <RowTemplate>
+                        <MudTd DataLabel="Date">@context.PaymentDate.ToString("yyyy-MM-dd")</MudTd>
+                        <MudTd DataLabel="Supplier">@context.SupplierName</MudTd>
+                        <MudTd DataLabel="Invoice #">@context.PurchaseInvoiceSupplierInvoiceNumber</MudTd>
+                        <MudTd DataLabel="Amount">@context.Amount.ToString("0.00")</MudTd>
+                        <MudTd DataLabel="Method">@context.PaymentMethod</MudTd>
+                        <MudTd DataLabel="Reference">@(context.ReferenceNumber ?? "—")</MudTd>
+                        <MudTd DataLabel="Status">
+                            @if (context.IsReversed)
+                            {
+                                <MudChip T="string" Size="Size.Small" Color="Color.Error">Reversed</MudChip>
+                            }
+                            else
+                            {
+                                <MudChip T="string" Size="Size.Small" Color="Color.Success">Applied</MudChip>
+                            }
+                        </MudTd>
+                    </RowTemplate>
+                    <NoRecordsContent>No supplier payments for this filter.</NoRecordsContent>
+                </MudTable>
+            </MudTabPanel>
+        </MudTabs>
+    </MudTabPanel>
+
+    <MudTabPanel Text="Customer Reports">
+        <MudGrid Class="mb-3">
+            <MudItem xs="12" sm="6" md="4">
+                <MudSelect T="long?" Value="_customerId" ValueChanged="OnCustomerFilterChangedAsync" Label="Customer" Variant="Variant.Outlined" Margin="Margin.Dense">
+                    <MudSelectItem T="long?" Value="@((long?)null)">All customers</MudSelectItem>
+                    @foreach (var customer in _customers)
+                    {
+                        <MudSelectItem T="long?" Value="@((long?)customer.Id)">@customer.Name</MudSelectItem>
+                    }
+                </MudSelect>
+            </MudItem>
+            <MudItem xs="12" sm="3" md="2">
+                <MudDatePicker Date="_customerFromDate" DateChanged="OnCustomerFromDateChangedAsync" Label="From" Variant="Variant.Outlined" Margin="Margin.Dense" />
+            </MudItem>
+            <MudItem xs="12" sm="3" md="2">
+                <MudDatePicker Date="_customerToDate" DateChanged="OnCustomerToDateChangedAsync" Label="To" Variant="Variant.Outlined" Margin="Margin.Dense" />
+            </MudItem>
+            <MudItem xs="12" md="4" Class="d-flex align-center justify-end">
+                <MudButton Variant="Variant.Outlined" Size="Size.Small" StartIcon="@Icons.Material.Filled.MenuBook" OnClick="@(() => NavigationManager.NavigateTo("sales/customer-ledger"))">Ledger &amp; Aging</MudButton>
+            </MudItem>
+        </MudGrid>
+
+        <MudTabs Elevation="0" Rounded="true" PanelClass="pt-3">
+            <MudTabPanel Text="Sales History">
+                <MudTable Items="@_salesHistory" Hover="true" Dense="true" Loading="@_isLoadingCustomer">
+                    <HeaderContent>
+                        <MudTh>Order #</MudTh>
+                        <MudTh>Customer</MudTh>
+                        <MudTh>Date</MudTh>
+                        <MudTh>Due date</MudTh>
+                        <MudTh>Total</MudTh>
+                        <MudTh>Paid</MudTh>
+                        <MudTh>Outstanding</MudTh>
+                        <MudTh>Status</MudTh>
+                    </HeaderContent>
+                    <RowTemplate>
+                        <MudTd DataLabel="Order #">@context.OrderNumber</MudTd>
+                        <MudTd DataLabel="Customer">@(context.CustomerName ?? "Walk-in")</MudTd>
+                        <MudTd DataLabel="Date">@context.OrderDate.ToString("yyyy-MM-dd")</MudTd>
+                        <MudTd DataLabel="Due date">@(context.DueDate.HasValue ? context.DueDate.Value.ToString("yyyy-MM-dd") : "—")</MudTd>
+                        <MudTd DataLabel="Total">@context.TotalAmount.ToString("0.00")</MudTd>
+                        <MudTd DataLabel="Paid">@context.AmountPaid.ToString("0.00")</MudTd>
+                        <MudTd DataLabel="Outstanding">@context.OutstandingBalance.ToString("0.00")</MudTd>
+                        <MudTd DataLabel="Status">@context.PaymentStatus</MudTd>
+                    </RowTemplate>
+                    <NoRecordsContent>No sales orders for this filter.</NoRecordsContent>
+                </MudTable>
+            </MudTabPanel>
+
+            <MudTabPanel Text="Outstanding Receivables">
+                <MudTable Items="@_salesHistory.Where(o => o.OutstandingBalance > 0).OrderBy(o => o.DueDate)" Hover="true" Dense="true" Loading="@_isLoadingCustomer">
+                    <HeaderContent>
+                        <MudTh>Order #</MudTh>
+                        <MudTh>Customer</MudTh>
+                        <MudTh>Due date</MudTh>
+                        <MudTh>Outstanding</MudTh>
+                        <MudTh>Status</MudTh>
+                    </HeaderContent>
+                    <RowTemplate>
+                        <MudTd DataLabel="Order #">@context.OrderNumber</MudTd>
+                        <MudTd DataLabel="Customer">@(context.CustomerName ?? "Walk-in")</MudTd>
+                        <MudTd DataLabel="Due date">@(context.DueDate.HasValue ? context.DueDate.Value.ToString("yyyy-MM-dd") : "—")</MudTd>
+                        <MudTd DataLabel="Outstanding">@context.OutstandingBalance.ToString("0.00")</MudTd>
+                        <MudTd DataLabel="Status">
+                            <MudChip T="string" Size="Size.Small" Color="@(context.PaymentStatus == "Overdue" ? Color.Error : Color.Warning)">@context.PaymentStatus</MudChip>
+                        </MudTd>
+                    </RowTemplate>
+                    <NoRecordsContent>Nothing outstanding for this filter.</NoRecordsContent>
+                </MudTable>
+            </MudTabPanel>
+
+            <MudTabPanel Text="Payment History">
+                <MudTable Items="@_customerPayments" Hover="true" Dense="true" Loading="@_isLoadingCustomer">
+                    <HeaderContent>
+                        <MudTh>Date</MudTh>
+                        <MudTh>Customer</MudTh>
+                        <MudTh>Amount</MudTh>
+                        <MudTh>Allocated</MudTh>
+                        <MudTh>Method</MudTh>
+                        <MudTh>Reference</MudTh>
+                        <MudTh>Status</MudTh>
+                    </HeaderContent>
+                    <RowTemplate>
+                        <MudTd DataLabel="Date">@context.PaymentDate.ToString("yyyy-MM-dd")</MudTd>
+                        <MudTd DataLabel="Customer">@context.CustomerName</MudTd>
+                        <MudTd DataLabel="Amount">@context.Amount.ToString("0.00")</MudTd>
+                        <MudTd DataLabel="Allocated">@context.AllocatedAmount.ToString("0.00")</MudTd>
+                        <MudTd DataLabel="Method">@context.PaymentMethod</MudTd>
+                        <MudTd DataLabel="Reference">@(context.ReferenceNumber ?? "—")</MudTd>
+                        <MudTd DataLabel="Status">
+                            @if (context.IsReversed)
+                            {
+                                <MudChip T="string" Size="Size.Small" Color="Color.Error">Reversed</MudChip>
+                            }
+                            else
+                            {
+                                <MudChip T="string" Size="Size.Small" Color="Color.Success">Applied</MudChip>
+                            }
+                        </MudTd>
+                    </RowTemplate>
+                    <NoRecordsContent>No customer payments for this filter.</NoRecordsContent>
+                </MudTable>
+            </MudTabPanel>
+        </MudTabs>
+    </MudTabPanel>
+</MudTabs>
+
+}
+
+@code {
+    private const int ReportFetchLimit = 500;
+
+    private HashSet<string> _permissions = [];
+    private bool _canView => _permissions.Contains("reporting.view");
+
+    private FinancialSummaryDto? _summary;
+
+    private IReadOnlyList<SupplierDto> _suppliers = [];
+    private long? _supplierId;
+    private DateTime? _supplierFromDate;
+    private DateTime? _supplierToDate;
+    private List<PurchaseInvoiceDto> _purchaseHistory = [];
+    private List<SupplierPaymentDto> _supplierPayments = [];
+    private bool _isLoadingSupplier;
+
+    private IReadOnlyList<CustomerDto> _customers = [];
+    private long? _customerId;
+    private DateTime? _customerFromDate;
+    private DateTime? _customerToDate;
+    private List<SalesOrderDto> _salesHistory = [];
+    private List<CustomerPaymentDto> _customerPayments = [];
+    private bool _isLoadingCustomer;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var state = await AuthStateProvider.GetAuthenticationStateAsync();
+        _permissions = state.User.FindAll("permission").Select(c => c.Value).ToHashSet();
+
+        if (!_canView)
+            return;
+
+        var summaryResult = await ApiClient.GetFinancialSummaryAsync();
+        if (summaryResult.Success)
+            _summary = summaryResult.Data;
+
+        var suppliersResult = await ApiClient.GetSuppliersAsync(includeInactive: true);
+        if (suppliersResult.Success && suppliersResult.Data is not null)
+            _suppliers = suppliersResult.Data;
+
+        var customersResult = await ApiClient.GetCustomersAsync(includeInactive: true);
+        if (customersResult.Success && customersResult.Data is not null)
+            _customers = customersResult.Data;
+
+        await Task.WhenAll(LoadSupplierReportsAsync(), LoadCustomerReportsAsync());
+    }
+
+    private async Task OnSupplierFilterChangedAsync(long? supplierId)
+    {
+        _supplierId = supplierId;
+        await LoadSupplierReportsAsync();
+    }
+
+    private async Task OnSupplierFromDateChangedAsync(DateTime? date)
+    {
+        _supplierFromDate = date;
+        await LoadSupplierReportsAsync();
+    }
+
+    private async Task OnSupplierToDateChangedAsync(DateTime? date)
+    {
+        _supplierToDate = date;
+        await LoadSupplierReportsAsync();
+    }
+
+    private async Task OnCustomerFilterChangedAsync(long? customerId)
+    {
+        _customerId = customerId;
+        await LoadCustomerReportsAsync();
+    }
+
+    private async Task OnCustomerFromDateChangedAsync(DateTime? date)
+    {
+        _customerFromDate = date;
+        await LoadCustomerReportsAsync();
+    }
+
+    private async Task OnCustomerToDateChangedAsync(DateTime? date)
+    {
+        _customerToDate = date;
+        await LoadCustomerReportsAsync();
+    }
+
+    /// <summary>Loads Purchase History (Supplier Ledger's row source) and Supplier Payment History for the current filter — the same underlying endpoints used on the Purchase Invoices and Supplier Ledger pages, just aggregated together here as a reporting view.</summary>
+    private async Task LoadSupplierReportsAsync()
+    {
+        if (!_permissions.Contains("purchasing.invoices.view") && !_permissions.Contains("purchasing.payments.view"))
+            return;
+
+        _isLoadingSupplier = true;
+
+        if (_permissions.Contains("purchasing.invoices.view"))
+        {
+            var invoicesResult = await ApiClient.GetPurchaseInvoicesAsync(1, ReportFetchLimit, _supplierId, null, null, _supplierFromDate, _supplierToDate);
+            _purchaseHistory = invoicesResult.Success && invoicesResult.Data is not null ? invoicesResult.Data.Data.ToList() : [];
+        }
+
+        if (_permissions.Contains("purchasing.payments.view"))
+        {
+            var paymentsResult = await ApiClient.GetSupplierPaymentsAsync(1, ReportFetchLimit, _supplierId, null, _supplierFromDate, _supplierToDate);
+            _supplierPayments = paymentsResult.Success && paymentsResult.Data is not null ? paymentsResult.Data.Data.ToList() : [];
+        }
+
+        _isLoadingSupplier = false;
+    }
+
+    /// <summary>Loads Sales History (Customer Ledger's row source) and Customer Payment History for the current filter.</summary>
+    private async Task LoadCustomerReportsAsync()
+    {
+        if (!_permissions.Contains("sales.orders.view") && !_permissions.Contains("customers.payments.view"))
+            return;
+
+        _isLoadingCustomer = true;
+
+        if (_permissions.Contains("sales.orders.view"))
+        {
+            var ordersResult = await ApiClient.GetSalesOrdersAsync(1, ReportFetchLimit, null, null, _customerId, null, _customerFromDate, _customerToDate);
+            _salesHistory = ordersResult.Success && ordersResult.Data is not null ? ordersResult.Data.Data.ToList() : [];
+        }
+
+        if (_permissions.Contains("customers.payments.view"))
+        {
+            var paymentsResult = await ApiClient.GetCustomerPaymentsAsync(1, ReportFetchLimit, _customerId, null, _customerFromDate, _customerToDate);
+            _customerPayments = paymentsResult.Success && paymentsResult.Data is not null ? paymentsResult.Data.Data.ToList() : [];
+        }
+
+        _isLoadingCustomer = false;
+    }
+}

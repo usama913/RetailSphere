@@ -7,6 +7,7 @@ using RetailSphere.Contracts.Sales;
 using RetailSphere.Domain.Catalog;
 using RetailSphere.Domain.Customers;
 using RetailSphere.Domain.Inventory;
+using RetailSphere.Domain.Notifications;
 using RetailSphere.Domain.Organization;
 using RetailSphere.Domain.Sales;
 using RetailSphere.SharedKernel;
@@ -23,6 +24,13 @@ namespace RetailSphere.Application.Features.SalesOrders.CreateSalesOrder;
 /// (Create -> AddLine per item -> SetAmountPaid) and decrements stock line-by-line,
 /// all before the first SaveChangesAsync — so a mid-loop failure just discards the
 /// pending changes rather than leaving a half-decremented sale.
+///
+/// Also enforces the Customer Credit Management requirements: once the order's total
+/// is known (after its lines are added), if the customer would end up over their
+/// CreditLimit, the sale is rejected with SalesOrder.CreditLimitExceeded unless the
+/// caller both set OverrideCreditLimit and holds sales.credit.override_limit — in
+/// which case the sale proceeds but a Notification and audit entry are raised so the
+/// override is traceable.
 /// </summary>
 public sealed class CreateSalesOrderCommandHandler(
     ISalesOrderRepository salesOrderRepository,
@@ -31,6 +39,7 @@ public sealed class CreateSalesOrderCommandHandler(
     IProductRepository productRepository,
     IProductAttributeRepository productAttributeRepository,
     IStockItemRepository stockItemRepository,
+    INotificationRepository notificationRepository,
     ICurrentUserService currentUserService,
     IUnitOfWork unitOfWork,
     AuditLogService auditLogService,
@@ -45,9 +54,10 @@ public sealed class CreateSalesOrderCommandHandler(
         if (branch is null)
             return Result.Failure<SalesOrderDto>(Error.NotFound("Branch.NotFound", "Branch not found."));
 
+        Customer? customer = null;
         if (request.CustomerId.HasValue)
         {
-            var customer = await customerRepository.GetByIdAsync(request.CustomerId.Value, cancellationToken);
+            customer = await customerRepository.GetByIdAsync(request.CustomerId.Value, cancellationToken);
             if (customer is null)
                 return Result.Failure<SalesOrderDto>(Error.NotFound("Customer.NotFound", "Customer not found."));
         }
@@ -84,6 +94,7 @@ public sealed class CreateSalesOrderCommandHandler(
         }
 
         SalesOrder salesOrder;
+        var creditLimitBreached = false;
         var attempt = 1;
         while (true)
         {
@@ -91,7 +102,8 @@ public sealed class CreateSalesOrderCommandHandler(
 
             var createResult = SalesOrder.Create(
                 orderNumber, request.BranchId, request.CustomerId, currentUserService.UserId,
-                DateTime.UtcNow, request.PaymentMethod, request.OrderDiscountAmount, request.Notes);
+                DateTime.UtcNow, request.PaymentMethod, request.OrderDiscountAmount, request.Notes,
+                request.PaymentTerms, request.DueDate);
             if (createResult.IsFailure)
                 return Result.Failure<SalesOrderDto>(createResult.Error);
 
@@ -110,6 +122,27 @@ public sealed class CreateSalesOrderCommandHandler(
             var paymentResult = salesOrder.SetAmountPaid(request.AmountPaid);
             if (paymentResult.IsFailure)
                 return Result.Failure<SalesOrderDto>(paymentResult.Error);
+
+            if (customer is not null && customer.CreditLimit.HasValue && salesOrder.OutstandingBalance > 0)
+            {
+                var existingOutstanding = (await salesOrderRepository.GetOutstandingByCustomerAsync(customer.Id, cancellationToken))
+                    .Sum(o => o.OutstandingBalance);
+                var prospectiveTotal = existingOutstanding + salesOrder.OutstandingBalance;
+
+                if (prospectiveTotal > customer.CreditLimit.Value)
+                {
+                    if (!request.OverrideCreditLimit)
+                        return Result.Failure<SalesOrderDto>(Error.Conflict(
+                            "SalesOrder.CreditLimitExceeded",
+                            $"This sale would bring {customer.Name}'s outstanding balance to {prospectiveTotal:0.00}, over their {customer.CreditLimit.Value:0.00} credit limit."));
+
+                    if (!currentUserService.HasPermission("sales.credit.override_limit"))
+                        return Result.Failure<SalesOrderDto>(Error.Unauthorized(
+                            "SalesOrder.CreditLimitOverrideDenied", "You don't have permission to override a customer's credit limit."));
+
+                    creditLimitBreached = true;
+                }
+            }
 
             salesOrderRepository.Add(salesOrder);
 
@@ -141,6 +174,22 @@ public sealed class CreateSalesOrderCommandHandler(
         }
 
         auditLogService.Log("SalesOrder", salesOrder.Id.ToString(), "Created", $"Completed sale '{salesOrder.OrderNumber}' for {salesOrder.TotalAmount:0.00}.");
+
+        if (creditLimitBreached && customer is not null)
+        {
+            auditLogService.Log(
+                "SalesOrder", salesOrder.Id.ToString(), "CreditLimitOverridden",
+                $"Sale '{salesOrder.OrderNumber}' exceeded customer '{customer.Name}''s credit limit of {customer.CreditLimit:0.00} and was overridden by {currentUserService.Email}.");
+
+            notificationRepository.Add(Notification.Create(
+                "CustomerCreditLimitExceeded",
+                "Critical",
+                $"Sale '{salesOrder.OrderNumber}' pushed customer '{customer.Name}' over their credit limit of {customer.CreditLimit:0.00} (override approved by {currentUserService.Email}).",
+                "Customer",
+                customer.Id,
+                userId: null));
+        }
+
         await unitOfWork.SaveChangesAsync(cancellationToken);
 
         var dto = await salesOrderDtoAssembler.ToDtoAsync(salesOrder, cancellationToken);

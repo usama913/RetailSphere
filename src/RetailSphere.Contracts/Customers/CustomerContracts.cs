@@ -12,6 +12,8 @@ public sealed class CustomerDto
 
     public string? Address { get; init; }
 
+    public decimal? CreditLimit { get; init; }
+
     public required bool IsActive { get; init; }
 }
 
@@ -24,6 +26,8 @@ public sealed class CreateCustomerRequest
     public string? Email { get; init; }
 
     public string? Address { get; init; }
+
+    public decimal? CreditLimit { get; init; }
 }
 
 public sealed class UpdateCustomerRequest
@@ -35,4 +39,9 @@ public sealed class UpdateCustomerRequest
     public string? Email { get; init; }
 
     public string? Address { get; init; }
+}
+
+public sealed class UpdateCustomerCreditLimitRequest
+{
+    public decimal? CreditLimit { get; init; }
 }

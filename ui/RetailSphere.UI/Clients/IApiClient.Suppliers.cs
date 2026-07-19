@@ -11,6 +11,8 @@ public partial interface IApiClient
 
     Task<ApiResponse<SupplierDto>> UpdateSupplierAsync(long id, UpdateSupplierRequest request, CancellationToken cancellationToken = default);
 
+    Task<ApiResponse<SupplierDto>> UpdateSupplierCreditTermsAsync(long id, UpdateSupplierCreditTermsRequest request, CancellationToken cancellationToken = default);
+
     Task<ApiResponse<object>> ActivateSupplierAsync(long id, CancellationToken cancellationToken = default);
 
     Task<ApiResponse<object>> DeactivateSupplierAsync(long id, CancellationToken cancellationToken = default);

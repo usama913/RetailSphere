@@ -16,12 +16,19 @@ namespace RetailSphere.Domain.Sales;
 /// Customer, and User are independent aggregates, same rule as every other
 /// cross-aggregate reference in this codebase (e.g. PurchaseOrder.SupplierId).
 /// CustomerId is nullable: walk-in sales have no customer on file.
+///
+/// Credit/Accounts Receivable: a walk-in sale (CustomerId null) must always be paid
+/// in full at checkout — there's nobody to hold a balance against. A sale with a
+/// named CustomerId may be paid less than TotalAmount (PaymentMethod "Credit" or
+/// "Split"); DueDate/PaymentTerms are then set so the unpaid remainder shows up on
+/// that customer's ledger/aging report and can be collected later via the Customer
+/// Payment screen (SalesOrder.RecordAdditionalPayment).
 /// </summary>
 public sealed class SalesOrder : AggregateRoot<long>, IAuditableEntity, ISoftDeletable
 {
     public static readonly IReadOnlyList<string> Statuses = ["Completed", "Cancelled"];
 
-    public static readonly IReadOnlyList<string> PaymentMethods = ["Cash", "Card"];
+    public static readonly IReadOnlyList<string> PaymentMethods = ["Cash", "Card", "Bank Transfer", "Mobile Payment", "Credit", "Split"];
 
     private readonly List<SalesOrderLine> _lines = [];
 
@@ -43,6 +50,11 @@ public sealed class SalesOrder : AggregateRoot<long>, IAuditableEntity, ISoftDel
     public decimal OrderDiscountAmount { get; private set; }
 
     public decimal AmountPaid { get; private set; }
+
+    /// <summary>Set only for credit/split sales (a named customer with a remaining balance) — mirrors PurchaseInvoice.DueDate/PaymentTerms on the AP side. Null for fully-paid sales.</summary>
+    public DateTime? DueDate { get; private set; }
+
+    public string? PaymentTerms { get; private set; }
 
     public string? Notes { get; private set; }
 
@@ -69,6 +81,27 @@ public sealed class SalesOrder : AggregateRoot<long>, IAuditableEntity, ISoftDel
 
     public decimal ChangeDue => Math.Max(0, AmountPaid - TotalAmount);
 
+    /// <summary>How much of this sale is still owed by the customer — the Accounts Receivable balance this order contributes.</summary>
+    public decimal OutstandingBalance => Math.Max(0, TotalAmount - AmountPaid);
+
+    /// <summary>"Paid" / "PartiallyPaid" / "Unpaid" / "Overdue" — computed, not stored, same approach as PurchaseInvoice.PaymentStatus.</summary>
+    public string PaymentStatus
+    {
+        get
+        {
+            if (Status == "Cancelled")
+                return "Cancelled";
+
+            if (OutstandingBalance <= 0)
+                return "Paid";
+
+            if (DueDate.HasValue && DueDate.Value.Date < DateTime.UtcNow.Date)
+                return "Overdue";
+
+            return AmountPaid > 0 ? "PartiallyPaid" : "Unpaid";
+        }
+    }
+
     private SalesOrder()
     {
     }
@@ -81,7 +114,9 @@ public sealed class SalesOrder : AggregateRoot<long>, IAuditableEntity, ISoftDel
         DateTime orderDate,
         string? paymentMethod,
         decimal orderDiscountAmount,
-        string? notes)
+        string? notes,
+        string? paymentTerms = null,
+        DateTime? dueDate = null)
     {
         if (string.IsNullOrWhiteSpace(orderNumber))
             return Result.Failure<SalesOrder>(Error.Validation("SalesOrder.NumberRequired", "Order number is required."));
@@ -100,6 +135,8 @@ public sealed class SalesOrder : AggregateRoot<long>, IAuditableEntity, ISoftDel
             PaymentMethod = NormalizePaymentMethod(paymentMethod),
             OrderDiscountAmount = orderDiscountAmount,
             Notes = notes,
+            PaymentTerms = paymentTerms,
+            DueDate = dueDate,
         });
     }
 
@@ -131,19 +168,49 @@ public sealed class SalesOrder : AggregateRoot<long>, IAuditableEntity, ISoftDel
 
     /// <summary>
     /// Called once, after every line has been added, so TotalAmount reflects the
-    /// finished cart. Rejects a payment that doesn't cover the total — this system
-    /// doesn't model partial/on-account payment for POS sales (a future Customer
-    /// credit/AR feature would need to relax this deliberately, not accidentally).
+    /// finished cart. A walk-in sale (no CustomerId) must still be paid in full —
+    /// there's no one to carry a balance against. A named customer may be paid less
+    /// than the total (a credit/split sale); CreateSalesOrderCommandHandler is
+    /// responsible for having already set DueDate/PaymentTerms via Create in that case.
     /// </summary>
     public Result SetAmountPaid(decimal amountPaid)
     {
         if (amountPaid < 0)
             return Result.Failure(Error.Validation("SalesOrder.InvalidAmountPaid", "Amount paid cannot be negative."));
 
-        if (amountPaid < TotalAmount)
-            return Result.Failure(Error.Validation("SalesOrder.InsufficientPayment", "Amount paid is less than the order total."));
+        if (amountPaid < TotalAmount && !CustomerId.HasValue)
+            return Result.Failure(Error.Validation("SalesOrder.InsufficientPayment", "A walk-in sale must be paid in full — select a customer to allow a credit or split payment."));
 
         AmountPaid = amountPaid;
+        return Result.Success();
+    }
+
+    /// <summary>
+    /// Records money collected later against this sale's remaining balance (the
+    /// Customer Payment screen, via a CustomerPayment allocation) — distinct from
+    /// SetAmountPaid, which only runs once at checkout. Rejects overpaying past
+    /// OutstandingBalance; the caller (CustomerPaymentAllocation) is expected to have
+    /// already capped the requested amount, but this is the authoritative guard.
+    /// </summary>
+    public Result RecordAdditionalPayment(decimal amount)
+    {
+        if (amount <= 0)
+            return Result.Failure(Error.Validation("SalesOrder.InvalidPaymentAmount", "Payment amount must be greater than zero."));
+
+        if (amount > OutstandingBalance)
+            return Result.Failure(Error.Validation("SalesOrder.PaymentExceedsBalance", "Payment amount exceeds this order's outstanding balance."));
+
+        AmountPaid += amount;
+        return Result.Success();
+    }
+
+    /// <summary>Undoes RecordAdditionalPayment when the underlying CustomerPayment is reversed/edited — see CustomerPayment.Reverse.</summary>
+    public Result ReverseAdditionalPayment(decimal amount)
+    {
+        if (amount <= 0)
+            return Result.Failure(Error.Validation("SalesOrder.InvalidPaymentAmount", "Reversal amount must be greater than zero."));
+
+        AmountPaid = Math.Max(0, AmountPaid - amount);
         return Result.Success();
     }
 

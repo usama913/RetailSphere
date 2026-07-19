@@ -3,14 +3,18 @@ using FluentValidation;
 using Microsoft.Extensions.DependencyInjection;
 using RetailSphere.Application.Common.Behaviors;
 using RetailSphere.Application.Common.Services;
+using RetailSphere.Application.Features.CustomerPayments.Common;
 using RetailSphere.Application.Features.Finance.CashRegister.Common;
 using RetailSphere.Application.Features.Finance.Expenses.Common;
 using RetailSphere.Application.Features.Inventory.Common;
 using RetailSphere.Application.Features.Inventory.StockTransfers.Common;
+using RetailSphere.Application.Features.Notifications;
 using RetailSphere.Application.Features.Products.Common;
+using RetailSphere.Application.Features.PurchaseInvoices.Common;
 using RetailSphere.Application.Features.PurchaseOrders.Common;
 using RetailSphere.Application.Features.SalesOrders.Common;
 using RetailSphere.Application.Features.SalesReturns.Common;
+using RetailSphere.Application.Features.SupplierPayments.Common;
 using RetailSphere.Application.Features.Users.Common;
 
 namespace RetailSphere.Application;
@@ -41,6 +45,10 @@ public static class DependencyInjection
         services.AddScoped<SalesReturnDtoAssembler>();
         services.AddScoped<ExpenseDtoAssembler>();
         services.AddScoped<CashRegisterSessionDtoAssembler>();
+        services.AddScoped<PurchaseInvoiceDtoAssembler>();
+        services.AddScoped<SupplierPaymentDtoAssembler>();
+        services.AddScoped<CustomerPaymentDtoAssembler>();
+        services.AddScoped<NotificationSweepService>();
 
         return services;
     }

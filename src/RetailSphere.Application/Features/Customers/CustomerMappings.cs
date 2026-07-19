@@ -12,6 +12,7 @@ internal static class CustomerMappings
         Phone = customer.Phone,
         Email = customer.Email,
         Address = customer.Address,
+        CreditLimit = customer.CreditLimit,
         IsActive = customer.IsActive,
     };
 }

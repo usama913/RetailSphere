@@ -1,7 +1,10 @@
 @using System.Security.Claims
+@using RetailSphere.Contracts.Notifications
+@implements IDisposable
 @inject NavigationManager NavigationManager
 @inject AuthenticationStateProvider AuthStateProvider
 @inject JwtAuthenticationStateProvider JwtAuthStateProvider
+@inject IApiClient ApiClient
 
 <MudAppBar Elevation="0" Class="rs-appbar">
     <MudIconButton Icon="@Icons.Material.Filled.Menu" Color="Color.Inherit" OnClick="@(() => OnToggleDrawer.InvokeAsync())" />
@@ -12,9 +15,39 @@
 
     <MudSpacer />
 
-    <MudTooltip Text="Notifications">
-        <MudIconButton Icon="@Icons.Material.Filled.NotificationsNone" Color="Color.Inherit" />
-    </MudTooltip>
+    <MudMenu AnchorOrigin="Origin.BottomRight" TransformOrigin="Origin.TopRight" Class="ml-2">
+        <ActivatorContent>
+            <MudTooltip Text="Notifications">
+                <MudBadge Content="@_unreadCount" Color="Color.Error" Overlap="true" Visible="@(_unreadCount > 0)">
+                    <MudIconButton Icon="@Icons.Material.Filled.NotificationsNone" Color="Color.Inherit" />
+                </MudBadge>
+            </MudTooltip>
+        </ActivatorContent>
+        <ChildContent>
+            <div style="min-width: 320px; max-width: 400px;">
+                <MudText Typo="Typo.subtitle2" Class="px-4 pt-2 pb-1">Notifications</MudText>
+                <MudDivider />
+                @if (_recentNotifications.Count == 0)
+                {
+                    <MudText Typo="Typo.body2" Class="pa-4" Style="color: var(--mud-palette-text-secondary);">You're all caught up.</MudText>
+                }
+                else
+                {
+                    @foreach (var notification in _recentNotifications)
+                    {
+                        <MudMenuItem OnClick="@(() => OpenNotificationAsync(notification))">
+                            <MudStack Spacing="0" Style="white-space: normal;">
+                                <MudText Typo="Typo.body2" Style="@(notification.IsRead ? null : "font-weight:600;")">@notification.Message</MudText>
+                                <MudText Typo="Typo.caption" Style="color: var(--mud-palette-text-secondary);">@notification.CreatedAtUtc.ToLocalTime().ToString("g")</MudText>
+                            </MudStack>
+                        </MudMenuItem>
+                    }
+                }
+                <MudDivider />
+                <MudMenuItem OnClick="@(() => NavigationManager.NavigateTo("notifications"))">View all notifications</MudMenuItem>
+            </div>
+        </ChildContent>
+    </MudMenu>
 
     <MudTooltip Text="@(IsDarkMode ? "Switch to light mode" : "Switch to dark mode")">
         <MudIconButton Icon="@(IsDarkMode ? Icons.Material.Filled.LightMode : Icons.Material.Filled.DarkMode)"
@@ -44,6 +77,10 @@
     private string _displayName = "Account";
     private string _initials = "?";
     private string _greeting = "Welcome";
+    private int _unreadCount;
+    private List<NotificationDto> _recentNotifications = [];
+    private PeriodicTimer? _pollTimer;
+    private CancellationTokenSource? _pollCts;
 
     protected override async Task OnInitializedAsync()
     {
@@ -69,11 +106,65 @@
             timeOfDay = "evening";
         }
         _greeting = $"Good {timeOfDay}";
+
+        await RefreshNotificationsAsync();
+        StartPolling();
+    }
+
+    /// <summary>Polls every 60 seconds so the bell badge stays roughly current without the user needing to manually refresh or reopen the page — a lightweight alternative to a push/SignalR channel.</summary>
+    private void StartPolling()
+    {
+        _pollCts = new CancellationTokenSource();
+        _pollTimer = new PeriodicTimer(TimeSpan.FromSeconds(60));
+
+        _ = PollLoopAsync(_pollTimer, _pollCts.Token);
+    }
+
+    private async Task PollLoopAsync(PeriodicTimer timer, CancellationToken cancellationToken)
+    {
+        try
+        {
+            while (await timer.WaitForNextTickAsync(cancellationToken))
+            {
+                await RefreshNotificationsAsync();
+                StateHasChanged();
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // Expected when the component is disposed.
+        }
+    }
+
+    private async Task RefreshNotificationsAsync()
+    {
+        var countResult = await ApiClient.GetUnreadNotificationCountAsync();
+        _unreadCount = countResult.Success ? countResult.Data : 0;
+
+        var listResult = await ApiClient.GetNotificationsAsync(unreadOnly: false, page: 1, pageSize: 8);
+        if (listResult.Success && listResult.Data is not null)
+            _recentNotifications = listResult.Data.Items.ToList();
+    }
+
+    private async Task OpenNotificationAsync(NotificationDto notification)
+    {
+        if (!notification.IsRead)
+            await ApiClient.MarkNotificationAsReadAsync(notification.Id);
+
+        await RefreshNotificationsAsync();
+        NavigationManager.NavigateTo("notifications");
     }
 
     private async Task LogoutAsync()
     {
         await JwtAuthStateProvider.LogoutAsync();
         NavigationManager.NavigateTo("/login", forceLoad: true);
+    }
+
+    public void Dispose()
+    {
+        _pollCts?.Cancel();
+        _pollCts?.Dispose();
+        _pollTimer?.Dispose();
     }
 }

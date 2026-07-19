@@ -8,6 +8,7 @@ using RetailSphere.Domain.Customers;
 using RetailSphere.Domain.Finance;
 using RetailSphere.Domain.IdentityAccess;
 using RetailSphere.Domain.Inventory;
+using RetailSphere.Domain.Notifications;
 using RetailSphere.Domain.Organization;
 using RetailSphere.Domain.Purchasing;
 using RetailSphere.Domain.Sales;
@@ -53,13 +54,17 @@ public static class DependencyInjection
         services.AddScoped<IUnitRepository, UnitRepository>();
         services.AddScoped<ISupplierRepository, SupplierRepository>();
         services.AddScoped<IPurchaseOrderRepository, PurchaseOrderRepository>();
+        services.AddScoped<IPurchaseInvoiceRepository, PurchaseInvoiceRepository>();
+        services.AddScoped<ISupplierPaymentRepository, SupplierPaymentRepository>();
         services.AddScoped<IStockItemRepository, StockItemRepository>();
         services.AddScoped<IStockTransferRepository, StockTransferRepository>();
         services.AddScoped<ICustomerRepository, CustomerRepository>();
+        services.AddScoped<ICustomerPaymentRepository, CustomerPaymentRepository>();
         services.AddScoped<ISalesOrderRepository, SalesOrderRepository>();
         services.AddScoped<ISalesReturnRepository, SalesReturnRepository>();
         services.AddScoped<IExpenseRepository, ExpenseRepository>();
         services.AddScoped<ICashRegisterSessionRepository, CashRegisterSessionRepository>();
+        services.AddScoped<INotificationRepository, NotificationRepository>();
 
         return services;
     }

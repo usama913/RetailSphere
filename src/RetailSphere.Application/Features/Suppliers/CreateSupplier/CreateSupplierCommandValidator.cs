@@ -12,5 +12,7 @@ public sealed class CreateSupplierCommandValidator : AbstractValidator<CreateSup
         RuleFor(x => x.Phone).MaximumLength(50);
         RuleFor(x => x.Address).MaximumLength(500);
         RuleFor(x => x.TaxNumber).MaximumLength(50);
+        RuleFor(x => x.CreditLimit).GreaterThanOrEqualTo(0).When(x => x.CreditLimit.HasValue);
+        RuleFor(x => x.PaymentTerms).MaximumLength(30);
     }
 }

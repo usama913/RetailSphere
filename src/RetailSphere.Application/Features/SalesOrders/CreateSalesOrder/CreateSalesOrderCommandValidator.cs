@@ -10,6 +10,7 @@ public sealed class CreateSalesOrderCommandValidator : AbstractValidator<CreateS
         RuleFor(x => x.OrderDiscountAmount).GreaterThanOrEqualTo(0);
         RuleFor(x => x.AmountPaid).GreaterThanOrEqualTo(0);
         RuleFor(x => x.Notes).MaximumLength(2000);
+        RuleFor(x => x.PaymentTerms).MaximumLength(30);
         RuleFor(x => x.Lines).NotEmpty().WithMessage("Add at least one item before checking out.");
 
         RuleForEach(x => x.Lines).ChildRules(line =>

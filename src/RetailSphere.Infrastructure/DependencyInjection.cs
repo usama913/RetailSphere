@@ -5,6 +5,7 @@ using Microsoft.Extensions.DependencyInjection;
 using RetailSphere.Application.Common.Interfaces;
 using RetailSphere.Application.Common.Options;
 using RetailSphere.Common;
+using RetailSphere.Infrastructure.Email;
 using RetailSphere.Infrastructure.Observability;
 using RetailSphere.Infrastructure.Security;
 
@@ -16,6 +17,7 @@ public static class DependencyInjection
     {
         services.Configure<JwtOptions>(configuration.GetSection(JwtOptions.SectionName));
         services.Configure<AuthOptions>(configuration.GetSection(AuthOptions.SectionName));
+        services.Configure<EmailOptions>(configuration.GetSection(EmailOptions.SectionName));
 
         services.AddHttpContextAccessor();
         services.AddScoped<ICurrentUserService, CurrentUserService>();
@@ -23,6 +25,8 @@ public static class DependencyInjection
 
         services.AddSingleton<IJwtTokenService, JwtTokenService>();
         services.AddSingleton<IPasswordHasher, Pbkdf2PasswordHasher>();
+
+        services.AddScoped<IEmailSender, SmtpEmailSender>();
 
         // Redis — distributed cache, session state, and the backing store for the
         // rate limiter (§7), so all of these behave correctly across multiple API instances.

@@ -20,6 +20,9 @@ public sealed class SupplierConfiguration : IEntityTypeConfiguration<Supplier>
         builder.Property(s => s.Address).HasMaxLength(500);
         builder.Property(s => s.TaxNumber).HasMaxLength(50);
 
+        builder.Property(s => s.CreditLimit).HasColumnType("decimal(18,2)");
+        builder.Property(s => s.PaymentTerms).HasMaxLength(30).HasDefaultValue("Cash").IsRequired();
+
         builder.Property(s => s.IsActive).HasDefaultValue(true);
 
         builder.Property(s => s.CreatedAtUtc);

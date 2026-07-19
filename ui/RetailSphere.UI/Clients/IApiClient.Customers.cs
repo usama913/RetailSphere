@@ -11,6 +11,8 @@ public partial interface IApiClient
 
     Task<ApiResponse<CustomerDto>> UpdateCustomerAsync(long id, UpdateCustomerRequest request, CancellationToken cancellationToken = default);
 
+    Task<ApiResponse<CustomerDto>> UpdateCustomerCreditLimitAsync(long id, UpdateCustomerCreditLimitRequest request, CancellationToken cancellationToken = default);
+
     Task<ApiResponse<object>> ActivateCustomerAsync(long id, CancellationToken cancellationToken = default);
 
     Task<ApiResponse<object>> DeactivateCustomerAsync(long id, CancellationToken cancellationToken = default);

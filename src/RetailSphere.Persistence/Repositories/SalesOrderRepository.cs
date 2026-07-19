@@ -58,6 +58,38 @@ public sealed class SalesOrderRepository(RetailSphereDbContext dbContext) : ISal
         return (items, totalCount);
     }
 
+    public async Task<IReadOnlyList<SalesOrder>> GetByCustomerAsync(long customerId, CancellationToken cancellationToken = default) =>
+        await dbContext.SalesOrders
+            .Include(s => s.Lines)
+            .Where(s => s.CustomerId == customerId)
+            .OrderBy(s => s.OrderDate)
+            .ToListAsync(cancellationToken);
+
+    /// <summary>
+    /// OutstandingBalance is computed (not a mapped column), so filtering by it can't
+    /// be translated into SQL — pulled into memory (scoped to one customer, so the
+    /// row count stays small) the same way PurchaseInvoiceRepository.SearchAsync
+    /// handles its PaymentStatus filter.
+    /// </summary>
+    public async Task<IReadOnlyList<SalesOrder>> GetOutstandingByCustomerAsync(long customerId, CancellationToken cancellationToken = default)
+    {
+        var orders = await dbContext.SalesOrders
+            .Include(s => s.Lines)
+            .Where(s => s.CustomerId == customerId && s.Status != "Cancelled")
+            .ToListAsync(cancellationToken);
+
+        return orders.Where(s => s.OutstandingBalance > 0).OrderBy(s => s.DueDate ?? s.OrderDate).ToList();
+    }
+
+    public async Task<IReadOnlyList<SalesOrder>> GetOutstandingAsync(CancellationToken cancellationToken = default)
+    {
+        var orders = await dbContext.SalesOrders
+            .Where(s => s.CustomerId != null && s.Status != "Cancelled")
+            .ToListAsync(cancellationToken);
+
+        return orders.Where(s => s.OutstandingBalance > 0).ToList();
+    }
+
     /// <summary>
     /// Ignores the soft-delete query filter — same reasoning as
     /// PurchaseOrderRepository.PoNumberExistsAsync: Remove() never actually deletes a

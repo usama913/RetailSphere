@@ -1,0 +1,545 @@
+@page "/purchasing/invoices"
+@using RetailSphere.Contracts.Admin
+@using RetailSphere.Contracts.Purchasing
+@attribute [Authorize]
+@inject IApiClient ApiClient
+@inject AuthenticationStateProvider AuthStateProvider
+@inject ISnackbar Snackbar
+
+<PageTitle>Purchase Invoices - RetailSphere</PageTitle>
+
+@if (!_canView)
+{
+    <MudAlert Severity="Severity.Warning">You don't have permission to view purchase invoices.</MudAlert>
+}
+else
+{
+
+<MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween" Class="mb-4">
+    <div>
+        <MudText Typo="Typo.h5">Purchase Invoices</MudText>
+        <MudText Typo="Typo.body2" Style="color: var(--mud-palette-text-secondary);">Supplier bills (Accounts Payable) — what we owe, and what's already been paid.</MudText>
+    </div>
+    @if (_canCreate)
+    {
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" OnClick="ShowCreateForm">
+            New Purchase Invoice
+        </MudButton>
+    }
+</MudStack>
+
+<MudGrid Class="mb-4">
+    <MudItem xs="12" sm="6" md="3">
+        <MudSelect T="long?" Value="_filterSupplierId" ValueChanged="OnFilterChangedAsync" Label="Supplier" Variant="Variant.Outlined">
+            <MudSelectItem T="long?" Value="@((long?)null)">All suppliers</MudSelectItem>
+            @foreach (var supplier in _suppliers)
+            {
+                <MudSelectItem T="long?" Value="@((long?)supplier.Id)">@supplier.Name</MudSelectItem>
+            }
+        </MudSelect>
+    </MudItem>
+    <MudItem xs="12" sm="6" md="3">
+        <MudSelect T="long?" Value="_filterBranchId" ValueChanged="OnFilterBranchChangedAsync" Label="Branch" Variant="Variant.Outlined">
+            <MudSelectItem T="long?" Value="@((long?)null)">All branches</MudSelectItem>
+            @foreach (var branch in _branches)
+            {
+                <MudSelectItem T="long?" Value="@((long?)branch.Id)">@branch.Name</MudSelectItem>
+            }
+        </MudSelect>
+    </MudItem>
+    <MudItem xs="12" sm="6" md="3">
+        <MudSelect T="string" Value="_filterStatus" ValueChanged="OnFilterStatusChangedAsync" Label="Payment status" Variant="Variant.Outlined">
+            <MudSelectItem T="string" Value="@string.Empty">All statuses</MudSelectItem>
+            <MudSelectItem T="string" Value='@("Unpaid")'>Unpaid</MudSelectItem>
+            <MudSelectItem T="string" Value='@("PartiallyPaid")'>Partially Paid</MudSelectItem>
+            <MudSelectItem T="string" Value='@("Paid")'>Paid</MudSelectItem>
+            <MudSelectItem T="string" Value='@("Overdue")'>Overdue</MudSelectItem>
+        </MudSelect>
+    </MudItem>
+</MudGrid>
+
+@if (_showForm)
+{
+    <MudPaper Class="pa-4 mb-4" Elevation="1">
+        <MudText Typo="Typo.h6" Class="mb-3">@(_editingId is null ? "New Purchase Invoice" : "Edit Purchase Invoice")</MudText>
+        <MudGrid>
+            @if (_editingId is null)
+            {
+                <MudItem xs="12" sm="6">
+                    <MudSelect T="long?" @bind-Value="_formSupplierId" Label="Supplier" Variant="Variant.Outlined" Required="true">
+                        @foreach (var supplier in _suppliers)
+                        {
+                            <MudSelectItem T="long?" Value="@((long?)supplier.Id)">@supplier.Name</MudSelectItem>
+                        }
+                    </MudSelect>
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <MudSelect T="long?" @bind-Value="_formBranchId" Label="Branch" Variant="Variant.Outlined" Required="true">
+                        @foreach (var branch in _branches)
+                        {
+                            <MudSelectItem T="long?" Value="@((long?)branch.Id)">@branch.Name</MudSelectItem>
+                        }
+                    </MudSelect>
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <MudNumericField @bind-Value="_formPurchaseOrderId" Label="Linked Purchase Order ID (optional)" Variant="Variant.Outlined" />
+                </MudItem>
+            }
+            <MudItem xs="12" sm="6">
+                <MudTextField @bind-Value="_formSupplierInvoiceNumber" Label="Supplier invoice number" Variant="Variant.Outlined" Required="true" />
+            </MudItem>
+            <MudItem xs="12" sm="6">
+                <MudDatePicker @bind-Date="_formInvoiceDate" Label="Invoice date" Variant="Variant.Outlined" />
+            </MudItem>
+            <MudItem xs="12" sm="6">
+                <MudDatePicker @bind-Date="_formDueDate" Label="Due date" Variant="Variant.Outlined" />
+            </MudItem>
+            <MudItem xs="12" sm="6">
+                <MudSelect T="string" @bind-Value="_formPaymentTerms" Label="Payment terms" Variant="Variant.Outlined">
+                    <MudSelectItem T="string" Value='@("Cash")'>Cash</MudSelectItem>
+                    <MudSelectItem T="string" Value='@("Net 15")'>Net 15</MudSelectItem>
+                    <MudSelectItem T="string" Value='@("Net 30")'>Net 30</MudSelectItem>
+                    <MudSelectItem T="string" Value='@("Net 45")'>Net 45</MudSelectItem>
+                    <MudSelectItem T="string" Value='@("Net 60")'>Net 60</MudSelectItem>
+                </MudSelect>
+            </MudItem>
+            <MudItem xs="12" sm="4">
+                <MudNumericField @bind-Value="_formSubtotalAmount" Label="Subtotal" Variant="Variant.Outlined" Format="0.00" />
+            </MudItem>
+            <MudItem xs="12" sm="4">
+                <MudNumericField @bind-Value="_formDiscountAmount" Label="Discount" Variant="Variant.Outlined" Format="0.00" />
+            </MudItem>
+            <MudItem xs="12" sm="4">
+                <MudNumericField @bind-Value="_formTaxAmount" Label="Tax" Variant="Variant.Outlined" Format="0.00" />
+            </MudItem>
+            <MudItem xs="12">
+                <MudTextField @bind-Value="_formNotes" Label="Notes" Variant="Variant.Outlined" Lines="2" />
+            </MudItem>
+        </MudGrid>
+        <MudText Typo="Typo.body2" Class="mt-2">Total: @((_formSubtotalAmount - _formDiscountAmount + _formTaxAmount).ToString("0.00"))</MudText>
+        <MudStack Row="true" Class="mt-4" Spacing="2">
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="SaveAsync" Disabled="@_isSaving">Save</MudButton>
+            <MudButton Variant="Variant.Text" OnClick="CancelForm">Cancel</MudButton>
+        </MudStack>
+    </MudPaper>
+}
+
+<MudTable Items="@_invoices" Hover="true" Dense="true" Loading="@_isLoading">
+    <HeaderContent>
+        <MudTh>Invoice #</MudTh>
+        <MudTh>Supplier</MudTh>
+        <MudTh>Invoice date</MudTh>
+        <MudTh>Due date</MudTh>
+        <MudTh>Total</MudTh>
+        <MudTh>Paid</MudTh>
+        <MudTh>Outstanding</MudTh>
+        <MudTh>Status</MudTh>
+        <MudTh>Actions</MudTh>
+    </HeaderContent>
+    <RowTemplate>
+        <MudTd DataLabel="Invoice #">@context.SupplierInvoiceNumber</MudTd>
+        <MudTd DataLabel="Supplier">@(context.SupplierName ?? "—")</MudTd>
+        <MudTd DataLabel="Invoice date">@context.InvoiceDate.ToString("yyyy-MM-dd")</MudTd>
+        <MudTd DataLabel="Due date">@context.DueDate.ToString("yyyy-MM-dd")</MudTd>
+        <MudTd DataLabel="Total">@context.TotalAmount.ToString("0.00")</MudTd>
+        <MudTd DataLabel="Paid">@context.AmountPaid.ToString("0.00")</MudTd>
+        <MudTd DataLabel="Outstanding">@context.OutstandingBalance.ToString("0.00")</MudTd>
+        <MudTd DataLabel="Status">
+            <MudChip T="string" Size="Size.Small" Color="@StatusColor(context.PaymentStatus)">@context.PaymentStatus</MudChip>
+        </MudTd>
+        <MudTd DataLabel="Actions">
+            <MudIconButton Icon="@Icons.Material.Filled.Payments" Size="Size.Small" Title="Payments" OnClick="@(() => TogglePayments(context.Id))" />
+            @if (_canEdit && context.AmountPaid == 0)
+            {
+                <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small" OnClick="@(() => ShowEditForm(context))" />
+                <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" OnClick="@(() => DeleteAsync(context.Id))" />
+            }
+        </MudTd>
+    </RowTemplate>
+</MudTable>
+
+@if (_expandedInvoiceId is not null)
+{
+    var expandedInvoice = _invoices.FirstOrDefault(i => i.Id == _expandedInvoiceId);
+    if (expandedInvoice is not null)
+    {
+        <MudPaper Class="pa-4 mt-2" Elevation="1">
+            <MudText Typo="Typo.subtitle1" Class="mb-2">Payments — @expandedInvoice.SupplierInvoiceNumber</MudText>
+
+            <MudTable Items="@_payments" Hover="true" Dense="true" Loading="@_isLoadingPayments">
+                <HeaderContent>
+                    <MudTh>Date</MudTh>
+                    <MudTh>Amount</MudTh>
+                    <MudTh>Method</MudTh>
+                    <MudTh>Reference</MudTh>
+                    <MudTh>Status</MudTh>
+                    <MudTh>Actions</MudTh>
+                </HeaderContent>
+                <RowTemplate>
+                    <MudTd DataLabel="Date">@context.PaymentDate.ToString("yyyy-MM-dd")</MudTd>
+                    <MudTd DataLabel="Amount">@context.Amount.ToString("0.00")</MudTd>
+                    <MudTd DataLabel="Method">@context.PaymentMethod</MudTd>
+                    <MudTd DataLabel="Reference">@(context.ReferenceNumber ?? "—")</MudTd>
+                    <MudTd DataLabel="Status">
+                        @if (context.IsReversed)
+                        {
+                            <MudChip T="string" Size="Size.Small" Color="Color.Default">Reversed</MudChip>
+                        }
+                        else
+                        {
+                            <MudChip T="string" Size="Size.Small" Color="Color.Success">Active</MudChip>
+                        }
+                    </MudTd>
+                    <MudTd DataLabel="Actions">
+                        @if (_canRecordPayment && !context.IsReversed)
+                        {
+                            <MudIconButton Icon="@Icons.Material.Filled.Undo" Size="Size.Small" Title="Reverse" OnClick="@(() => ReversePaymentAsync(context.Id))" />
+                        }
+                    </MudTd>
+                </RowTemplate>
+            </MudTable>
+
+            @if (_canRecordPayment && expandedInvoice.OutstandingBalance > 0)
+            {
+                <MudText Typo="Typo.subtitle2" Class="mt-4 mb-2">Record a payment</MudText>
+                <MudGrid>
+                    <MudItem xs="12" sm="3">
+                        <MudNumericField @bind-Value="_payAmount" Label="Amount" Variant="Variant.Outlined" Format="0.00" />
+                    </MudItem>
+                    <MudItem xs="12" sm="3">
+                        <MudDatePicker @bind-Date="_payDate" Label="Payment date" Variant="Variant.Outlined" />
+                    </MudItem>
+                    <MudItem xs="12" sm="3">
+                        <MudSelect T="string" @bind-Value="_payMethod" Label="Method" Variant="Variant.Outlined">
+                            <MudSelectItem T="string" Value='@("Cash")'>Cash</MudSelectItem>
+                            <MudSelectItem T="string" Value='@("Card")'>Card</MudSelectItem>
+                            <MudSelectItem T="string" Value='@("Bank Transfer")'>Bank Transfer</MudSelectItem>
+                            <MudSelectItem T="string" Value='@("Cheque")'>Cheque</MudSelectItem>
+                            <MudSelectItem T="string" Value='@("Other")'>Other</MudSelectItem>
+                        </MudSelect>
+                    </MudItem>
+                    <MudItem xs="12" sm="3">
+                        <MudTextField @bind-Value="_payReference" Label="Reference #" Variant="Variant.Outlined" />
+                    </MudItem>
+                </MudGrid>
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" Class="mt-2" OnClick="@(() => RecordPaymentAsync(expandedInvoice))" Disabled="@_isRecordingPayment">
+                    Record Payment
+                </MudButton>
+            }
+        </MudPaper>
+    }
+}
+
+<MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.Center" Class="mt-4" Spacing="4">
+    <MudIconButton Icon="@Icons.Material.Filled.ChevronLeft" Disabled="@(_page <= 1)" OnClick="@(() => ChangePageAsync(_page - 1))" />
+    <MudText Typo="Typo.body2">Page @_page of @_totalPages</MudText>
+    <MudIconButton Icon="@Icons.Material.Filled.ChevronRight" Disabled="@(_page >= _totalPages)" OnClick="@(() => ChangePageAsync(_page + 1))" />
+</MudStack>
+
+}
+
+@code {
+    private const int PageSize = 25;
+
+    private IReadOnlyList<PurchaseInvoiceDto> _invoices = [];
+    private IReadOnlyList<SupplierPaymentDto> _payments = [];
+    private IReadOnlyList<SupplierDto> _suppliers = [];
+    private IReadOnlyList<BranchDto> _branches = [];
+    private HashSet<string> _permissions = [];
+
+    private bool _isLoading = true;
+    private bool _isLoadingPayments;
+    private bool _isSaving;
+    private bool _isRecordingPayment;
+    private bool _showForm;
+    private long? _editingId;
+
+    private long? _filterSupplierId;
+    private long? _filterBranchId;
+    private string _filterStatus = string.Empty;
+    private int _page = 1;
+    private long _totalCount;
+    private int _totalPages = 1;
+
+    private long? _formSupplierId;
+    private long? _formBranchId;
+    private long? _formPurchaseOrderId;
+    private string _formSupplierInvoiceNumber = string.Empty;
+    private DateTime? _formInvoiceDate = DateTime.Today;
+    private DateTime? _formDueDate = DateTime.Today.AddDays(30);
+    private string _formPaymentTerms = "Cash";
+    private decimal _formSubtotalAmount;
+    private decimal _formDiscountAmount;
+    private decimal _formTaxAmount;
+    private string? _formNotes;
+
+    private long? _expandedInvoiceId;
+    private decimal _payAmount;
+    private DateTime? _payDate = DateTime.Today;
+    private string _payMethod = "Cash";
+    private string? _payReference;
+
+    private bool _canView => _permissions.Contains("purchasing.invoices.view");
+    private bool _canCreate => _permissions.Contains("purchasing.invoices.create");
+    private bool _canEdit => _permissions.Contains("purchasing.invoices.edit");
+    private bool _canRecordPayment => _permissions.Contains("purchasing.payments.record");
+
+    protected override async Task OnInitializedAsync()
+    {
+        var state = await AuthStateProvider.GetAuthenticationStateAsync();
+        _permissions = state.User.FindAll("permission").Select(c => c.Value).ToHashSet();
+
+        if (_canView)
+        {
+            var suppliersResult = await ApiClient.GetSuppliersAsync(includeInactive: true);
+            if (suppliersResult.Success && suppliersResult.Data is not null)
+                _suppliers = suppliersResult.Data;
+
+            var branchesResult = await ApiClient.GetBranchesAsync(includeInactive: true);
+            if (branchesResult.Success && branchesResult.Data is not null)
+                _branches = branchesResult.Data;
+
+            await LoadAsync();
+        }
+        else
+        {
+            _isLoading = false;
+        }
+    }
+
+    private async Task LoadAsync()
+    {
+        _isLoading = true;
+
+        var result = await ApiClient.GetPurchaseInvoicesAsync(
+            _page, PageSize, _filterSupplierId, _filterBranchId, string.IsNullOrWhiteSpace(_filterStatus) ? null : _filterStatus);
+
+        if (result.Success && result.Data is not null)
+        {
+            _invoices = result.Data.Data;
+            _totalCount = result.Data.TotalCount;
+            _totalPages = Math.Max(1, (int)Math.Ceiling(_totalCount / (double)PageSize));
+        }
+        else
+        {
+            Snackbar.Add(result.Error?.Message ?? "Failed to load purchase invoices.", Severity.Error);
+        }
+
+        _isLoading = false;
+    }
+
+    private async Task OnFilterChangedAsync(long? value)
+    {
+        _filterSupplierId = value;
+        _page = 1;
+        await LoadAsync();
+    }
+
+    private async Task OnFilterBranchChangedAsync(long? value)
+    {
+        _filterBranchId = value;
+        _page = 1;
+        await LoadAsync();
+    }
+
+    private async Task OnFilterStatusChangedAsync(string value)
+    {
+        _filterStatus = value;
+        _page = 1;
+        await LoadAsync();
+    }
+
+    private async Task ChangePageAsync(int newPage)
+    {
+        _page = newPage;
+        await LoadAsync();
+    }
+
+    private static Color StatusColor(string status) => status switch
+    {
+        "Paid" => Color.Success,
+        "PartiallyPaid" => Color.Info,
+        "Overdue" => Color.Error,
+        _ => Color.Default,
+    };
+
+    private void ShowCreateForm()
+    {
+        _editingId = null;
+        _formSupplierId = _filterSupplierId;
+        _formBranchId = _filterBranchId;
+        _formPurchaseOrderId = null;
+        _formSupplierInvoiceNumber = string.Empty;
+        _formInvoiceDate = DateTime.Today;
+        _formDueDate = DateTime.Today.AddDays(30);
+        _formPaymentTerms = "Cash";
+        _formSubtotalAmount = 0;
+        _formDiscountAmount = 0;
+        _formTaxAmount = 0;
+        _formNotes = null;
+        _showForm = true;
+    }
+
+    private void ShowEditForm(PurchaseInvoiceDto invoice)
+    {
+        _editingId = invoice.Id;
+        _formSupplierInvoiceNumber = invoice.SupplierInvoiceNumber;
+        _formInvoiceDate = invoice.InvoiceDate;
+        _formDueDate = invoice.DueDate;
+        _formPaymentTerms = invoice.PaymentTerms;
+        _formSubtotalAmount = invoice.SubtotalAmount;
+        _formDiscountAmount = invoice.DiscountAmount;
+        _formTaxAmount = invoice.TaxAmount;
+        _formNotes = invoice.Notes;
+        _showForm = true;
+    }
+
+    private void CancelForm() => _showForm = false;
+
+    private async Task SaveAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_formSupplierInvoiceNumber))
+        {
+            Snackbar.Add("Supplier invoice number is required.", Severity.Warning);
+            return;
+        }
+
+        _isSaving = true;
+
+        var result = _editingId is null
+            ? await ApiClient.CreatePurchaseInvoiceAsync(new CreatePurchaseInvoiceRequest
+            {
+                SupplierId = _formSupplierId ?? 0,
+                BranchId = _formBranchId ?? 0,
+                PurchaseOrderId = _formPurchaseOrderId,
+                SupplierInvoiceNumber = _formSupplierInvoiceNumber,
+                InvoiceDate = _formInvoiceDate ?? DateTime.Today,
+                DueDate = _formDueDate ?? DateTime.Today,
+                PaymentTerms = _formPaymentTerms,
+                SubtotalAmount = _formSubtotalAmount,
+                DiscountAmount = _formDiscountAmount,
+                TaxAmount = _formTaxAmount,
+                Notes = _formNotes,
+            })
+            : await ApiClient.UpdatePurchaseInvoiceAsync(_editingId.Value, new UpdatePurchaseInvoiceRequest
+            {
+                SupplierInvoiceNumber = _formSupplierInvoiceNumber,
+                InvoiceDate = _formInvoiceDate ?? DateTime.Today,
+                DueDate = _formDueDate ?? DateTime.Today,
+                PaymentTerms = _formPaymentTerms,
+                SubtotalAmount = _formSubtotalAmount,
+                DiscountAmount = _formDiscountAmount,
+                TaxAmount = _formTaxAmount,
+                Notes = _formNotes,
+            });
+
+        if (result.Success)
+        {
+            Snackbar.Add("Purchase invoice saved.", Severity.Success);
+            _showForm = false;
+            await LoadAsync();
+        }
+        else
+        {
+            Snackbar.Add(result.Error?.Message ?? "Failed to save purchase invoice.", Severity.Error);
+        }
+
+        _isSaving = false;
+    }
+
+    private async Task DeleteAsync(long id)
+    {
+        var result = await ApiClient.DeletePurchaseInvoiceAsync(id);
+        if (result.Success)
+        {
+            Snackbar.Add("Purchase invoice deleted.", Severity.Success);
+            await LoadAsync();
+        }
+        else
+        {
+            Snackbar.Add(result.Error?.Message ?? "Failed to delete purchase invoice.", Severity.Error);
+        }
+    }
+
+    private async Task TogglePayments(long invoiceId)
+    {
+        if (_expandedInvoiceId == invoiceId)
+        {
+            _expandedInvoiceId = null;
+            return;
+        }
+
+        _expandedInvoiceId = invoiceId;
+        _payAmount = _invoices.FirstOrDefault(i => i.Id == invoiceId)?.OutstandingBalance ?? 0;
+        _payDate = DateTime.Today;
+        _payMethod = "Cash";
+        _payReference = null;
+        await LoadPaymentsAsync(invoiceId);
+    }
+
+    private async Task LoadPaymentsAsync(long invoiceId)
+    {
+        _isLoadingPayments = true;
+        var result = await ApiClient.GetSupplierPaymentsAsync(1, 100, null, invoiceId);
+        if (result.Success && result.Data is not null)
+        {
+            _payments = result.Data.Data;
+        }
+        else
+        {
+            Snackbar.Add(result.Error?.Message ?? "Failed to load payments.", Severity.Error);
+        }
+        _isLoadingPayments = false;
+    }
+
+    private async Task RecordPaymentAsync(PurchaseInvoiceDto invoice)
+    {
+        if (_payAmount <= 0)
+        {
+            Snackbar.Add("Payment amount must be greater than zero.", Severity.Warning);
+            return;
+        }
+
+        _isRecordingPayment = true;
+
+        var result = await ApiClient.RecordSupplierPaymentAsync(new RecordSupplierPaymentRequest
+        {
+            SupplierId = invoice.SupplierId,
+            PurchaseInvoiceId = invoice.Id,
+            BranchId = invoice.BranchId,
+            PaymentDate = _payDate ?? DateTime.Today,
+            Amount = _payAmount,
+            PaymentMethod = _payMethod,
+            ReferenceNumber = _payReference,
+        });
+
+        if (result.Success)
+        {
+            Snackbar.Add("Payment recorded.", Severity.Success);
+            await LoadAsync();
+            await LoadPaymentsAsync(invoice.Id);
+        }
+        else
+        {
+            Snackbar.Add(result.Error?.Message ?? "Failed to record payment.", Severity.Error);
+        }
+
+        _isRecordingPayment = false;
+    }
+
+    private async Task ReversePaymentAsync(long paymentId)
+    {
+        var result = await ApiClient.ReverseSupplierPaymentAsync(paymentId, new ReverseSupplierPaymentRequest { Reason = "Reversed from Purchase Invoices screen" });
+        if (result.Success)
+        {
+            Snackbar.Add("Payment reversed.", Severity.Success);
+            await LoadAsync();
+            if (_expandedInvoiceId.HasValue)
+                await LoadPaymentsAsync(_expandedInvoiceId.Value);
+        }
+        else
+        {
+            Snackbar.Add(result.Error?.Message ?? "Failed to reverse payment.", Severity.Error);
+        }
+    }
+}

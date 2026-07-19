@@ -16,6 +16,10 @@ public sealed class SupplierDto
 
     public string? TaxNumber { get; init; }
 
+    public decimal? CreditLimit { get; init; }
+
+    public required string PaymentTerms { get; init; }
+
     public required bool IsActive { get; init; }
 }
 
@@ -32,6 +36,10 @@ public sealed class CreateSupplierRequest
     public string? Address { get; init; }
 
     public string? TaxNumber { get; init; }
+
+    public decimal? CreditLimit { get; init; }
+
+    public string? PaymentTerms { get; init; }
 }
 
 public sealed class UpdateSupplierRequest
@@ -47,4 +55,11 @@ public sealed class UpdateSupplierRequest
     public string? Address { get; init; }
 
     public string? TaxNumber { get; init; }
+}
+
+public sealed class UpdateSupplierCreditTermsRequest
+{
+    public decimal? CreditLimit { get; init; }
+
+    public string? PaymentTerms { get; init; }
 }

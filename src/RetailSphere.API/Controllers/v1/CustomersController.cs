@@ -9,6 +9,7 @@ using RetailSphere.Application.Features.Customers.DeactivateCustomer;
 using RetailSphere.Application.Features.Customers.DeleteCustomer;
 using RetailSphere.Application.Features.Customers.GetCustomers;
 using RetailSphere.Application.Features.Customers.UpdateCustomer;
+using RetailSphere.Application.Features.Customers.UpdateCustomerCreditLimit;
 using RetailSphere.Contracts.Customers;
 
 namespace RetailSphere.API.Controllers.v1;
@@ -31,7 +32,7 @@ public sealed class CustomersController(ISender sender) : ApiControllerBase
     public async Task<IActionResult> Create(CreateCustomerRequest request, CancellationToken cancellationToken)
     {
         var result = await sender.Send(
-            new CreateCustomerCommand(request.Name, request.Phone, request.Email, request.Address),
+            new CreateCustomerCommand(request.Name, request.Phone, request.Email, request.Address, request.CreditLimit),
             cancellationToken);
         return HandleResult(result);
     }
@@ -43,6 +44,14 @@ public sealed class CustomersController(ISender sender) : ApiControllerBase
         var result = await sender.Send(
             new UpdateCustomerCommand(id, request.Name, request.Phone, request.Email, request.Address),
             cancellationToken);
+        return HandleResult(result);
+    }
+
+    [HttpPut("{id:long}/credit-limit")]
+    [Authorize(Policy = "customers.edit")]
+    public async Task<IActionResult> UpdateCreditLimit(long id, UpdateCustomerCreditLimitRequest request, CancellationToken cancellationToken)
+    {
+        var result = await sender.Send(new UpdateCustomerCreditLimitCommand(id, request.CreditLimit), cancellationToken);
         return HandleResult(result);
     }
 

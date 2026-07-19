@@ -12,6 +12,7 @@ using RetailSphere.API;
 using RetailSphere.API.Authorization;
 using RetailSphere.API.Middleware;
 using RetailSphere.Application;
+using RetailSphere.Application.Features.Notifications;
 using RetailSphere.Infrastructure;
 using RetailSphere.Infrastructure.Logging;
 using RetailSphere.Persistence;
@@ -148,6 +149,29 @@ using (var migrationScope = app.Services.CreateScope())
 {
     var dbContext = migrationScope.ServiceProvider.GetRequiredService<RetailSphere.Persistence.RetailSphereDbContext>();
     await dbContext.Database.MigrateAsync();
+}
+
+// ---- AP/AR Notifications engine (§ Notifications & Alerts) — one daily sweep for
+// overdue/due-soon Purchase Invoices and Sales Orders. Only registered when Hangfire
+// itself has real storage configured (see AddInfrastructure), same guard it uses.
+//
+// Uses the service-based IRecurringJobManager (resolved from DI) rather than the
+// static RecurringJob helper. AddHangfire(...) registers JobStorage as a *lazy* DI
+// singleton — it isn't actually built (and JobStorage.Current isn't set) until
+// something resolves it from the container, which normally only happens once the
+// Hangfire server's hosted service starts during app.Run(). Calling the static
+// RecurringJob.AddOrUpdate here — before app.Run() — throws "Current JobStorage
+// instance has not been initialized yet" because JobStorage.Current is still null
+// at this point. Resolving IRecurringJobManager forces that same DI-configured
+// JobStorage to be built immediately instead.
+if (!string.IsNullOrWhiteSpace(mySqlConnection))
+{
+    using var jobScope = app.Services.CreateScope();
+    var recurringJobManager = jobScope.ServiceProvider.GetRequiredService<IRecurringJobManager>();
+    recurringJobManager.AddOrUpdate<NotificationSweepService>(
+        "ap-ar-notification-sweep",
+        service => service.RunAsync(CancellationToken.None),
+        Cron.Daily);
 }
 
 if (app.Environment.IsDevelopment())

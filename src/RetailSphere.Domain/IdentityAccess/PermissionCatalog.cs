@@ -59,10 +59,15 @@ public static class PermissionCatalog
         new(51, "sales.orders.view", "View Sales Orders", "Sales"),
         new(52, "sales.returns.view", "View Returns & Exchanges", "Sales"),
         new(53, "sales.returns.create", "Process Returns & Exchanges", "Sales"),
+        new(54, "sales.credit.override_limit", "Override Customer Credit Limit at Checkout", "Sales"),
 
         // Customers
         new(60, "customers.view", "View Customers", "Customers"),
         new(61, "customers.edit", "Edit Customers", "Customers"),
+        new(62, "customers.payments.view", "View Customer Payments", "Customers"),
+        new(63, "customers.payments.record", "Record Customer Payments", "Customers"),
+        new(64, "customers.payments.edit", "Edit/Reverse Customer Payments", "Customers"),
+        new(65, "customers.ledger.view", "View Customer Ledger & Aging", "Customers"),
 
         // Finance
         new(70, "finance.cashregister.view", "View Cash Register", "Finance"),
@@ -70,5 +75,15 @@ public static class PermissionCatalog
         new(72, "reporting.view", "View Reports", "Finance"),
         new(73, "finance.expenses.view", "View Expenses", "Finance"),
         new(74, "finance.expenses.edit", "Record/Edit Expenses", "Finance"),
+        new(75, "finance.notifications.view", "View Notifications", "Finance"),
+
+        // Accounts Payable (Supplier Invoices & Payments)
+        new(80, "purchasing.invoices.view", "View Purchase Invoices", "Purchasing"),
+        new(81, "purchasing.invoices.create", "Create Purchase Invoices", "Purchasing"),
+        new(82, "purchasing.invoices.edit", "Edit Purchase Invoices", "Purchasing"),
+        new(83, "purchasing.payments.view", "View Supplier Payments", "Purchasing"),
+        new(84, "purchasing.payments.record", "Record Supplier Payments", "Purchasing"),
+        new(85, "purchasing.payments.edit", "Edit/Reverse Supplier Payments", "Purchasing"),
+        new(86, "purchasing.ledger.view", "View Supplier Ledger & Aging", "Purchasing"),
     ];
 }

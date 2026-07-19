@@ -165,6 +165,10 @@ else
                 }
                 <MudStack Row="true" Justify="Justify.SpaceBetween"><MudText Typo="Typo.subtitle1"><strong>Total</strong></MudText><MudText Typo="Typo.subtitle1"><strong>@_lastCompletedOrder.TotalAmount.ToString("0.00")</strong></MudText></MudStack>
                 <MudStack Row="true" Justify="Justify.SpaceBetween"><MudText Typo="Typo.body2">Paid (@_lastCompletedOrder.PaymentMethod)</MudText><MudText Typo="Typo.body2">@_lastCompletedOrder.AmountPaid.ToString("0.00")</MudText></MudStack>
+                @if (_lastCompletedOrder.OutstandingBalance > 0)
+                {
+                    <MudStack Row="true" Justify="Justify.SpaceBetween"><MudText Typo="Typo.body2">Outstanding</MudText><MudText Typo="Typo.body2">@_lastCompletedOrder.OutstandingBalance.ToString("0.00")</MudText></MudStack>
+                }
                 <MudStack Row="true" Justify="Justify.SpaceBetween"><MudText Typo="Typo.body2">Change due</MudText><MudText Typo="Typo.body2">@_lastCompletedOrder.ChangeDue.ToString("0.00")</MudText></MudStack>
             </MudStack>
             <MudDivider Class="my-2" />
@@ -259,7 +263,7 @@ else
     <MudItem xs="12" md="4">
         <MudPaper Class="pa-4 mb-4" Elevation="1">
             <MudText Typo="Typo.h6" Class="mb-2">Customer</MudText>
-            <MudSelect T="long?" @bind-Value="_customerId" Label="Customer" Variant="Variant.Outlined" Margin="Margin.Dense">
+            <MudSelect T="long?" Value="_customerId" ValueChanged="OnCustomerChangedAsync" Label="Customer" Variant="Variant.Outlined" Margin="Margin.Dense">
                 <MudSelectItem T="long?" Value="@((long?)null)">Walk-in customer</MudSelectItem>
                 @foreach (var customer in _customers)
                 {
@@ -281,17 +285,56 @@ else
                     </MudButton>
                 </MudPaper>
             }
+
+            @if (_customerCreditSummary is not null)
+            {
+                <MudPaper Class="pa-3 mt-3" Elevation="0" Style="border: 1px solid var(--mud-palette-table-lines);">
+                    <MudText Typo="Typo.caption" Style="color: var(--mud-palette-text-secondary);">Credit standing</MudText>
+                    <MudStack Row="true" Justify="Justify.SpaceBetween"><MudText Typo="Typo.body2">Outstanding</MudText><MudText Typo="Typo.body2">@_customerCreditSummary.CurrentOutstandingBalance.ToString("0.00")</MudText></MudStack>
+                    <MudStack Row="true" Justify="Justify.SpaceBetween"><MudText Typo="Typo.body2">Credit limit</MudText><MudText Typo="Typo.body2">@(_customerCreditSummary.CreditLimit.HasValue ? _customerCreditSummary.CreditLimit.Value.ToString("0.00") : "Unlimited")</MudText></MudStack>
+                    <MudStack Row="true" Justify="Justify.SpaceBetween"><MudText Typo="Typo.body2">Available credit</MudText><MudText Typo="Typo.body2">@(_customerCreditSummary.AvailableCredit.HasValue ? _customerCreditSummary.AvailableCredit.Value.ToString("0.00") : "—")</MudText></MudStack>
+                    @if (_customerCreditSummary.TotalOverdueAmount > 0)
+                    {
+                        <MudStack Row="true" Justify="Justify.SpaceBetween"><MudText Typo="Typo.body2" Style="color: var(--mud-palette-error);">Overdue</MudText><MudText Typo="Typo.body2" Style="color: var(--mud-palette-error);">@_customerCreditSummary.TotalOverdueAmount.ToString("0.00")</MudText></MudStack>
+                    }
+                    @if (_customerCreditSummary.IsOverCreditLimit)
+                    {
+                        <MudAlert Severity="Severity.Warning" Dense="true" Class="mt-2">This customer is already over their credit limit.</MudAlert>
+                    }
+                </MudPaper>
+            }
         </MudPaper>
 
         <MudPaper Class="pa-4" Elevation="1">
             <MudText Typo="Typo.h6" Class="mb-2">Payment</MudText>
 
-            <MudSelect T="string" @bind-Value="_paymentMethod" Label="Payment method" Variant="Variant.Outlined" Margin="Margin.Dense">
+            <MudSelect T="string" Value="_paymentMethod" ValueChanged="OnPaymentMethodChanged" Label="Payment method" Variant="Variant.Outlined" Margin="Margin.Dense">
                 @foreach (var method in PaymentMethods)
                 {
                     <MudSelectItem T="string" Value="@method">@method</MudSelectItem>
                 }
             </MudSelect>
+
+            @if (IsCreditSale)
+            {
+                <MudGrid Class="mt-1">
+                    <MudItem xs="12" sm="6">
+                        <MudDatePicker @bind-Date="_dueDate" Label="Due date" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                    </MudItem>
+                    <MudItem xs="12" sm="6">
+                        <MudSelect T="string" @bind-Value="_paymentTerms" Label="Payment terms" Variant="Variant.Outlined" Margin="Margin.Dense">
+                            <MudSelectItem T="string" Value='@("Net 15")'>Net 15</MudSelectItem>
+                            <MudSelectItem T="string" Value='@("Net 30")'>Net 30</MudSelectItem>
+                            <MudSelectItem T="string" Value='@("Net 45")'>Net 45</MudSelectItem>
+                            <MudSelectItem T="string" Value='@("Net 60")'>Net 60</MudSelectItem>
+                        </MudSelect>
+                    </MudItem>
+                </MudGrid>
+                @if (_customerId is null)
+                {
+                    <MudText Typo="Typo.caption" Style="color: var(--mud-palette-error);">Select a customer to allow a credit or split sale.</MudText>
+                }
+            }
 
             <MudNumericField T="decimal" Value="_orderDiscountAmount" ValueChanged="OnOrderDiscountChanged" Label="Order discount" Variant="Variant.Outlined" Margin="Margin.Dense" Min="0" Class="mt-2" />
 
@@ -309,11 +352,34 @@ else
                 <MudText Typo="Typo.body2">Change due</MudText>
                 <MudText Typo="Typo.body2">@GetChangeDue().ToString("0.00")</MudText>
             </MudStack>
+            @if (GetTotal() - _amountPaid > 0)
+            {
+                <MudStack Row="true" Justify="Justify.SpaceBetween" Class="mt-1">
+                    <MudText Typo="Typo.body2">Outstanding (on account)</MudText>
+                    <MudText Typo="Typo.body2">@(GetTotal() - _amountPaid).ToString("0.00")</MudText>
+                </MudStack>
+            }
 
             <MudTextField @bind-Value="_notes" Label="Notes (optional)" Variant="Variant.Outlined" Margin="Margin.Dense" Class="mt-2" Lines="2" />
 
+            @if (_showCreditOverrideConfirm)
+            {
+                <MudAlert Severity="Severity.Warning" Class="mt-3">
+                    @_creditOverrideMessage
+                    @if (_canOverrideCreditLimit)
+                    {
+                        <div class="mt-2">
+                            <MudButton Variant="Variant.Filled" Color="Color.Warning" Size="Size.Small" OnClick="@(() => CheckoutAsync(overrideCreditLimit: true))" Disabled="@_isCheckingOut">
+                                Proceed Anyway
+                            </MudButton>
+                            <MudButton Variant="Variant.Text" Size="Size.Small" OnClick="@(() => _showCreditOverrideConfirm = false)">Cancel</MudButton>
+                        </div>
+                    }
+                </MudAlert>
+            }
+
             <MudButton Variant="Variant.Filled" Color="Color.Success" FullWidth="true" Class="mt-3" Size="Size.Large"
-                       OnClick="CheckoutAsync" Disabled="@(_isCheckingOut || _cart.Count == 0 || _branchId is null)">
+                       OnClick="@(() => CheckoutAsync(overrideCreditLimit: false))" Disabled="@(_isCheckingOut || _cart.Count == 0 || _branchId is null)">
                 Checkout
             </MudButton>
         </MudPaper>
@@ -336,7 +402,7 @@ else
         public decimal DiscountAmount { get; set; }
     }
 
-    private static readonly IReadOnlyList<string> PaymentMethods = ["Cash", "Card"];
+    private static readonly IReadOnlyList<string> PaymentMethods = ["Cash", "Card", "Bank Transfer", "Mobile Payment", "Credit", "Split"];
     private static readonly IReadOnlyList<string> DefaultExpenseCategories = ["Rent", "Utilities", "Salaries", "Supplies", "Maintenance", "Marketing", "Other"];
 
     // Bulk-fetched once per branch change — same simplification as the Inventory
@@ -362,8 +428,11 @@ else
     private string _qacName = string.Empty;
     private string? _qacPhone;
     private string? _qacEmail;
+    private CustomerCreditSummaryDto? _customerCreditSummary;
 
     private string _paymentMethod = "Cash";
+    private DateTime? _dueDate = DateTime.Today.AddDays(30);
+    private string _paymentTerms = "Net 30";
     private decimal _orderDiscountAmount;
     private decimal _amountPaid;
     private bool _amountPaidTouched;
@@ -371,6 +440,9 @@ else
     private bool _isCheckingOut;
     private SalesOrderDto? _lastCompletedOrder;
     private CashRegisterSessionDto? _currentSession;
+
+    private bool _showCreditOverrideConfirm;
+    private string _creditOverrideMessage = string.Empty;
 
     private bool _showQuickAddExpense;
     private bool _isSavingExpense;
@@ -385,6 +457,9 @@ else
     private bool _canUse => _permissions.Contains("sales.pos.create");
     private bool _canOperateRegister => _permissions.Contains("finance.cashregister.operate");
     private bool _canRecordExpense => _permissions.Contains("finance.expenses.edit");
+    private bool _canOverrideCreditLimit => _permissions.Contains("sales.credit.override_limit");
+
+    private bool IsCreditSale => _paymentMethod is "Credit" or "Split";
 
     protected override async Task OnInitializedAsync()
     {
@@ -462,6 +537,10 @@ else
             ? Row("Discount", $"-{order.OrderDiscountAmount:0.00}")
             : string.Empty;
 
+        var outstandingHtml = order.OutstandingBalance > 0
+            ? Row("Outstanding", order.OutstandingBalance.ToString("0.00"))
+            : string.Empty;
+
         return
             "<div class=\"rs-receipt\">" +
             $"<div class=\"rs-center\"><strong>{Encode(order.BranchName ?? "RetailSphere")}</strong><br/>" +
@@ -478,6 +557,7 @@ else
             discountHtml +
             Row("Total", order.TotalAmount.ToString("0.00"), bold: true) +
             Row($"Paid ({order.PaymentMethod})", order.AmountPaid.ToString("0.00")) +
+            outstandingHtml +
             Row("Change due", order.ChangeDue.ToString("0.00")) +
             "<hr/>" +
             "<div class=\"rs-center\">Thank you for your purchase!</div>" +
@@ -565,6 +645,33 @@ else
         _branchId = branchId;
         await LoadStockAsync();
         await LoadCashRegisterSessionAsync();
+    }
+
+    /// <summary>Fetches the Customer Credit Summary the moment a customer is selected at checkout (per the POS Integration requirements) — outstanding balance, available credit, unpaid invoice count, last payment date, total overdue.</summary>
+    private async Task OnCustomerChangedAsync(long? customerId)
+    {
+        _customerId = customerId;
+        _customerCreditSummary = null;
+        _showCreditOverrideConfirm = false;
+
+        if (!customerId.HasValue)
+            return;
+
+        var result = await ApiClient.GetCustomerCreditSummaryAsync(customerId.Value);
+        if (result.Success && result.Data is not null)
+            _customerCreditSummary = result.Data;
+    }
+
+    private void OnPaymentMethodChanged(string value)
+    {
+        _paymentMethod = value;
+        _showCreditOverrideConfirm = false;
+
+        // A cash/card/etc. sale always needs to be paid in full — re-sync Amount Paid
+        // to the total the same way a fresh cart does, unless the cashier already
+        // deliberately typed a different value in.
+        if (!IsCreditSale)
+            SyncAmountPaid();
     }
 
     private void OnSearchChanged(string value) => _searchTerm = value;
@@ -687,6 +794,7 @@ else
     {
         _amountPaid = value < 0 ? 0 : value;
         _amountPaidTouched = true;
+        _showCreditOverrideConfirm = false;
     }
 
     /// <summary>
@@ -739,7 +847,7 @@ else
         if (result.Success && result.Data is not null)
         {
             await LoadCustomersAsync();
-            _customerId = result.Data.Id;
+            await OnCustomerChangedAsync(result.Data.Id);
             _showQuickAddCustomer = false;
             _qacName = string.Empty;
             _qacPhone = null;
@@ -803,7 +911,16 @@ else
         _isSavingExpense = false;
     }
 
-    private async Task CheckoutAsync()
+    /// <summary>
+    /// A walk-in (no customer selected) sale must always be paid in full — same
+    /// invariant SalesOrder.SetAmountPaid enforces server-side. A customer sale can
+    /// be Credit (AmountPaid = 0) or Split (0 &lt; AmountPaid &lt; Total); the server
+    /// is still the source of truth, this is just an early, friendlier check.
+    /// On a SalesOrder.CreditLimitExceeded error, shows an inline confirmation —
+    /// resubmitting with overrideCreditLimit: true is only offered to users holding
+    /// sales.credit.override_limit (see CreateSalesOrderCommandHandler).
+    /// </summary>
+    private async Task CheckoutAsync(bool overrideCreditLimit)
     {
         if (_branchId is null)
         {
@@ -817,13 +934,14 @@ else
             return;
         }
 
-        if (_amountPaid < GetTotal())
+        if (_customerId is null && _amountPaid < GetTotal())
         {
-            Snackbar.Add("Amount paid is less than the total.", Severity.Warning);
+            Snackbar.Add("A walk-in sale must be paid in full — select a customer to allow a credit or split payment.", Severity.Warning);
             return;
         }
 
         _isCheckingOut = true;
+        _showCreditOverrideConfirm = false;
 
         var request = new CreateSalesOrderRequest
         {
@@ -833,6 +951,9 @@ else
             OrderDiscountAmount = _orderDiscountAmount,
             AmountPaid = _amountPaid,
             Notes = _notes,
+            PaymentTerms = IsCreditSale ? _paymentTerms : null,
+            DueDate = IsCreditSale ? _dueDate : null,
+            OverrideCreditLimit = overrideCreditLimit,
             Lines = _cart.Select(c => new CreateSalesOrderLineRequest
             {
                 ProductId = c.ProductId,
@@ -850,12 +971,21 @@ else
             _lastCompletedOrder = result.Data;
             _cart.Clear();
             _customerId = null;
+            _customerCreditSummary = null;
             _orderDiscountAmount = 0;
             _amountPaid = 0;
             _amountPaidTouched = false;
             _notes = null;
+            _paymentMethod = "Cash";
+            _dueDate = DateTime.Today.AddDays(30);
+            _paymentTerms = "Net 30";
             await LoadStockAsync();
             await LoadCashRegisterSessionAsync();
+        }
+        else if (result.Error?.Code == "SalesOrder.CreditLimitExceeded")
+        {
+            _creditOverrideMessage = result.Error.Message;
+            _showCreditOverrideConfirm = true;
         }
         else
         {

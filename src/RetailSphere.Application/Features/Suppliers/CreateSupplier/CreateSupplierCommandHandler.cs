@@ -15,7 +15,9 @@ public sealed class CreateSupplierCommandHandler(
 {
     public async Task<Result<SupplierDto>> Handle(CreateSupplierCommand request, CancellationToken cancellationToken)
     {
-        var supplierResult = Supplier.Create(request.Name, request.ContactPerson, request.Email, request.Phone, request.Address, request.TaxNumber);
+        var supplierResult = Supplier.Create(
+            request.Name, request.ContactPerson, request.Email, request.Phone, request.Address, request.TaxNumber,
+            request.CreditLimit, request.PaymentTerms);
         if (supplierResult.IsFailure)
             return Result.Failure<SupplierDto>(supplierResult.Error);
 

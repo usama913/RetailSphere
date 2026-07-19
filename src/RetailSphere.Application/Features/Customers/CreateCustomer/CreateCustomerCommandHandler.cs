@@ -18,7 +18,7 @@ public sealed class CreateCustomerCommandHandler(
         if (!string.IsNullOrWhiteSpace(request.Phone) && await customerRepository.PhoneExistsAsync(request.Phone.Trim(), cancellationToken: cancellationToken))
             return Result.Failure<CustomerDto>(Error.Conflict("Customer.DuplicatePhone", "A customer with this phone number already exists."));
 
-        var customerResult = Customer.Create(request.Name, request.Phone, request.Email, request.Address);
+        var customerResult = Customer.Create(request.Name, request.Phone, request.Email, request.Address, request.CreditLimit);
         if (customerResult.IsFailure)
             return Result.Failure<CustomerDto>(customerResult.Error);
 

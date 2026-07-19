@@ -9,6 +9,7 @@ using RetailSphere.Application.Features.Suppliers.DeactivateSupplier;
 using RetailSphere.Application.Features.Suppliers.DeleteSupplier;
 using RetailSphere.Application.Features.Suppliers.GetSuppliers;
 using RetailSphere.Application.Features.Suppliers.UpdateSupplier;
+using RetailSphere.Application.Features.Suppliers.UpdateSupplierCreditTerms;
 using RetailSphere.Contracts.Purchasing;
 
 namespace RetailSphere.API.Controllers.v1;
@@ -31,7 +32,9 @@ public sealed class SuppliersController(ISender sender) : ApiControllerBase
     public async Task<IActionResult> Create(CreateSupplierRequest request, CancellationToken cancellationToken)
     {
         var result = await sender.Send(
-            new CreateSupplierCommand(request.Name, request.ContactPerson, request.Email, request.Phone, request.Address, request.TaxNumber),
+            new CreateSupplierCommand(
+                request.Name, request.ContactPerson, request.Email, request.Phone, request.Address, request.TaxNumber,
+                request.CreditLimit, request.PaymentTerms),
             cancellationToken);
         return HandleResult(result);
     }
@@ -43,6 +46,14 @@ public sealed class SuppliersController(ISender sender) : ApiControllerBase
         var result = await sender.Send(
             new UpdateSupplierCommand(id, request.Name, request.ContactPerson, request.Email, request.Phone, request.Address, request.TaxNumber),
             cancellationToken);
+        return HandleResult(result);
+    }
+
+    [HttpPut("{id:long}/credit-terms")]
+    [Authorize(Policy = "purchasing.suppliers.edit")]
+    public async Task<IActionResult> UpdateCreditTerms(long id, UpdateSupplierCreditTermsRequest request, CancellationToken cancellationToken)
+    {
+        var result = await sender.Send(new UpdateSupplierCreditTermsCommand(id, request.CreditLimit, request.PaymentTerms), cancellationToken);
         return HandleResult(result);
     }
 

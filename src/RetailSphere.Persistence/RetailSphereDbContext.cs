@@ -7,6 +7,7 @@ using RetailSphere.Domain.Catalog;
 using RetailSphere.Domain.Customers;
 using RetailSphere.Domain.IdentityAccess;
 using RetailSphere.Domain.Inventory;
+using RetailSphere.Domain.Notifications;
 using RetailSphere.Domain.Organization;
 using RetailSphere.Domain.Purchasing;
 using RetailSphere.Domain.Sales;
@@ -41,11 +42,19 @@ public sealed class RetailSphereDbContext(DbContextOptions<RetailSphereDbContext
 
     public DbSet<PurchaseOrder> PurchaseOrders => Set<PurchaseOrder>();
 
+    public DbSet<PurchaseInvoice> PurchaseInvoices => Set<PurchaseInvoice>();
+
+    public DbSet<SupplierPayment> SupplierPayments => Set<SupplierPayment>();
+
     public DbSet<StockItem> StockItems => Set<StockItem>();
 
     public DbSet<StockTransfer> StockTransfers => Set<StockTransfer>();
 
     public DbSet<Customer> Customers => Set<Customer>();
+
+    public DbSet<CustomerPayment> CustomerPayments => Set<CustomerPayment>();
+
+    public DbSet<CustomerPaymentAllocation> CustomerPaymentAllocations => Set<CustomerPaymentAllocation>();
 
     public DbSet<SalesOrder> SalesOrders => Set<SalesOrder>();
 
@@ -54,6 +63,8 @@ public sealed class RetailSphereDbContext(DbContextOptions<RetailSphereDbContext
     public DbSet<RetailSphere.Domain.Finance.Expense> Expenses => Set<RetailSphere.Domain.Finance.Expense>();
 
     public DbSet<RetailSphere.Domain.Finance.CashRegisterSession> CashRegisterSessions => Set<RetailSphere.Domain.Finance.CashRegisterSession>();
+
+    public DbSet<Notification> Notifications => Set<Notification>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

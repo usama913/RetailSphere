@@ -21,6 +21,7 @@
     <div class="rs-sidebar-nav">
         <MudNavMenu>
             <MudNavLink Href="" Match="NavLinkMatch.All" Icon="@Icons.Material.Filled.Dashboard" hidden="@(!IsVisible("Dashboard"))">Dashboard</MudNavLink>
+            <MudNavLink Href="notifications" Match="NavLinkMatch.All" Icon="@Icons.Material.Filled.Notifications" hidden="@(!IsVisible("Notifications"))">Notifications</MudNavLink>
 
             <MudNavGroup Title="Administration" Icon="@Icons.Material.Filled.AdminPanelSettings" @ref="_adminGroup"
                          hidden="@(!IsVisible("Administration", "Users", "Roles", "Branches", "Audit Logs"))">
@@ -48,16 +49,20 @@
             </MudNavGroup>
 
             <MudNavGroup Title="Purchasing" Icon="@Icons.Material.Filled.LocalShipping" @ref="_purchasingGroup"
-                         hidden="@(!IsVisible("Purchasing", "Suppliers", "Purchase Orders"))">
+                         hidden="@(!IsVisible("Purchasing", "Suppliers", "Purchase Orders", "Purchase Invoices", "Supplier Ledger"))">
                 <MudNavLink Href="purchasing/suppliers" Icon="@Icons.Material.Filled.Business" hidden="@(!HasPermission("purchasing.suppliers.view") || !IsVisible("Suppliers"))">Suppliers</MudNavLink>
                 <MudNavLink Href="purchasing/orders" Icon="@Icons.Material.Filled.ReceiptLong" hidden="@(!HasPermission("purchasing.orders.view") || !IsVisible("Purchase Orders"))">Purchase Orders</MudNavLink>
+                <MudNavLink Href="purchasing/invoices" Icon="@Icons.Material.Filled.RequestQuote" hidden="@(!HasPermission("purchasing.invoices.view") || !IsVisible("Purchase Invoices"))">Purchase Invoices</MudNavLink>
+                <MudNavLink Href="purchasing/supplier-ledger" Icon="@Icons.Material.Filled.MenuBook" hidden="@(!HasPermission("purchasing.ledger.view") || !IsVisible("Supplier Ledger"))">Supplier Ledger</MudNavLink>
             </MudNavGroup>
 
             <MudNavGroup Title="Sales" Icon="@Icons.Material.Filled.PointOfSale" @ref="_salesGroup"
-                         hidden="@(!IsVisible("Sales", "POS", "Orders", "Returns"))">
+                         hidden="@(!IsVisible("Sales", "POS", "Orders", "Returns", "Customer Payments", "Customer Ledger"))">
                 <MudNavLink Href="sales/pos" Icon="@Icons.Material.Filled.ShoppingCart" hidden="@(!HasPermission("sales.pos.create") || !IsVisible("POS"))">Point of Sale</MudNavLink>
                 <MudNavLink Href="sales/orders" Icon="@Icons.Material.Filled.Receipt" hidden="@(!HasPermission("sales.orders.view") || !IsVisible("Orders"))">Sales Orders</MudNavLink>
                 <MudNavLink Href="sales/returns" Icon="@Icons.Material.Filled.AssignmentReturn" hidden="@(!HasPermission("sales.returns.view") || !IsVisible("Returns"))">Returns &amp; Exchanges</MudNavLink>
+                <MudNavLink Href="sales/customer-payments" Icon="@Icons.Material.Filled.Payments" hidden="@(!HasPermission("customers.payments.view") || !IsVisible("Customer Payments"))">Customer Payments</MudNavLink>
+                <MudNavLink Href="sales/customer-ledger" Icon="@Icons.Material.Filled.MenuBook" hidden="@(!HasPermission("customers.ledger.view") || !IsVisible("Customer Ledger"))">Customer Ledger</MudNavLink>
             </MudNavGroup>
 
             <MudNavLink Href="customers" Icon="@Icons.Material.Filled.Groups" hidden="@(!HasPermission("customers.view") || !IsVisible("Customers"))">Customers</MudNavLink>

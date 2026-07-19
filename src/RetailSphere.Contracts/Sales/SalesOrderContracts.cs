@@ -53,6 +53,10 @@ public sealed class SalesOrderDto
 
     public required DateTime OrderDate { get; init; }
 
+    public DateTime? DueDate { get; init; }
+
+    public string? PaymentTerms { get; init; }
+
     public required string PaymentMethod { get; init; }
 
     public required decimal SubtotalAmount { get; init; }
@@ -64,6 +68,10 @@ public sealed class SalesOrderDto
     public required decimal TotalAmount { get; init; }
 
     public required decimal AmountPaid { get; init; }
+
+    public required decimal OutstandingBalance { get; init; }
+
+    public required string PaymentStatus { get; init; }
 
     public required decimal ChangeDue { get; init; }
 
@@ -99,6 +107,13 @@ public sealed class CreateSalesOrderRequest
     public required decimal AmountPaid { get; init; }
 
     public string? Notes { get; init; }
+
+    public string? PaymentTerms { get; init; }
+
+    public DateTime? DueDate { get; init; }
+
+    /// <summary>Set true to resubmit a checkout the server previously rejected with SalesOrder.CreditLimitExceeded, after the cashier/manager confirmed the override.</summary>
+    public bool OverrideCreditLimit { get; init; }
 
     public required IReadOnlyList<CreateSalesOrderLineRequest> Lines { get; init; }
 }

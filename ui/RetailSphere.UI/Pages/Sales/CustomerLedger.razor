@@ -1,0 +1,171 @@
+@page "/sales/customer-ledger"
+@using RetailSphere.Contracts.Customers
+@attribute [Authorize]
+@inject IApiClient ApiClient
+@inject AuthenticationStateProvider AuthStateProvider
+@inject ISnackbar Snackbar
+
+<PageTitle>Customer Ledger - RetailSphere</PageTitle>
+
+@if (!_canView)
+{
+    <MudAlert Severity="Severity.Warning">You don't have permission to view the customer ledger.</MudAlert>
+}
+else
+{
+
+<MudText Typo="Typo.h5" Class="mb-1">Customer Ledger &amp; Aging</MudText>
+<MudText Typo="Typo.body2" Class="mb-4" Style="color: var(--mud-palette-text-secondary);">
+    Every sale and payment for one customer, running balance, and an aging breakdown across all customers.
+</MudText>
+
+<MudTabs Elevation="0" Rounded="true" ApplyEffectsToContainer="true" PanelClass="pa-4">
+    <MudTabPanel Text="Customer Ledger">
+        <MudSelect T="long?" Value="_selectedCustomerId" ValueChanged="OnCustomerChangedAsync" Label="Customer" Variant="Variant.Outlined" Class="mb-4">
+            <MudSelectItem T="long?" Value="@((long?)null)">Select a customer…</MudSelectItem>
+            @foreach (var customer in _customers)
+            {
+                <MudSelectItem T="long?" Value="@((long?)customer.Id)">@customer.Name</MudSelectItem>
+            }
+        </MudSelect>
+
+        @if (_ledger is not null)
+        {
+            <MudTable Items="@_ledger.Entries" Hover="true" Dense="true" Loading="@_isLoadingLedger">
+                <HeaderContent>
+                    <MudTh>Date</MudTh>
+                    <MudTh>Type</MudTh>
+                    <MudTh>Reference</MudTh>
+                    <MudTh>Description</MudTh>
+                    <MudTh>Debit</MudTh>
+                    <MudTh>Credit</MudTh>
+                    <MudTh>Running balance</MudTh>
+                </HeaderContent>
+                <RowTemplate>
+                    <MudTd DataLabel="Date">@context.Date.ToString("yyyy-MM-dd")</MudTd>
+                    <MudTd DataLabel="Type">@context.Type</MudTd>
+                    <MudTd DataLabel="Reference">@(context.ReferenceNumber ?? "—")</MudTd>
+                    <MudTd DataLabel="Description">
+                        @if (context.IsReversed)
+                        {
+                            <span style="text-decoration: line-through; color: var(--mud-palette-text-disabled);">@context.Description</span>
+                        }
+                        else
+                        {
+                            @context.Description
+                        }
+                    </MudTd>
+                    <MudTd DataLabel="Debit">@(context.DebitAmount > 0 ? context.DebitAmount.ToString("0.00") : "—")</MudTd>
+                    <MudTd DataLabel="Credit">@(context.CreditAmount > 0 ? context.CreditAmount.ToString("0.00") : "—")</MudTd>
+                    <MudTd DataLabel="Running balance">@context.RunningBalance.ToString("0.00")</MudTd>
+                </RowTemplate>
+            </MudTable>
+            <MudText Typo="Typo.h6" Class="mt-3">Closing balance: @_ledger.ClosingBalance.ToString("0.00")</MudText>
+        }
+        else if (_selectedCustomerId is null)
+        {
+            <MudAlert Severity="Severity.Info">Select a customer to view their ledger.</MudAlert>
+        }
+    </MudTabPanel>
+
+    <MudTabPanel Text="Aging Report">
+        @if (_isLoadingAging)
+        {
+            <MudProgressLinear Indeterminate="true" />
+        }
+        else if (_aging is not null)
+        {
+            <MudTable Items="@_aging.Customers" Hover="true" Dense="true">
+                <HeaderContent>
+                    <MudTh>Customer</MudTh>
+                    <MudTh>Current</MudTh>
+                    <MudTh>1-30 days</MudTh>
+                    <MudTh>31-60 days</MudTh>
+                    <MudTh>61-90 days</MudTh>
+                    <MudTh>90+ days</MudTh>
+                    <MudTh>Total</MudTh>
+                </HeaderContent>
+                <RowTemplate>
+                    <MudTd DataLabel="Customer">@context.CustomerName</MudTd>
+                    <MudTd DataLabel="Current">@context.Current.ToString("0.00")</MudTd>
+                    <MudTd DataLabel="1-30 days">@context.Days1To30.ToString("0.00")</MudTd>
+                    <MudTd DataLabel="31-60 days">@context.Days31To60.ToString("0.00")</MudTd>
+                    <MudTd DataLabel="61-90 days">@context.Days61To90.ToString("0.00")</MudTd>
+                    <MudTd DataLabel="90+ days">@context.Over90Days.ToString("0.00")</MudTd>
+                    <MudTd DataLabel="Total"><strong>@context.Total.ToString("0.00")</strong></MudTd>
+                </RowTemplate>
+            </MudTable>
+            <MudText Typo="Typo.h6" Class="mt-3">Grand total outstanding: @_aging.GrandTotal.ToString("0.00")</MudText>
+        }
+    </MudTabPanel>
+</MudTabs>
+
+}
+
+@code {
+    private IReadOnlyList<CustomerDto> _customers = [];
+    private HashSet<string> _permissions = [];
+
+    private long? _selectedCustomerId;
+    private CustomerLedgerDto? _ledger;
+    private bool _isLoadingLedger;
+
+    private CustomerAgingReportDto? _aging;
+    private bool _isLoadingAging = true;
+
+    private bool _canView => _permissions.Contains("customers.ledger.view");
+
+    protected override async Task OnInitializedAsync()
+    {
+        var state = await AuthStateProvider.GetAuthenticationStateAsync();
+        _permissions = state.User.FindAll("permission").Select(c => c.Value).ToHashSet();
+
+        if (!_canView)
+        {
+            _isLoadingAging = false;
+            return;
+        }
+
+        var customersResult = await ApiClient.GetCustomersAsync(includeInactive: true);
+        if (customersResult.Success && customersResult.Data is not null)
+            _customers = customersResult.Data;
+
+        await LoadAgingAsync();
+    }
+
+    private async Task OnCustomerChangedAsync(long? customerId)
+    {
+        _selectedCustomerId = customerId;
+        _ledger = null;
+
+        if (!customerId.HasValue)
+            return;
+
+        _isLoadingLedger = true;
+        var result = await ApiClient.GetCustomerLedgerAsync(customerId.Value);
+        if (result.Success && result.Data is not null)
+        {
+            _ledger = result.Data;
+        }
+        else
+        {
+            Snackbar.Add(result.Error?.Message ?? "Failed to load customer ledger.", Severity.Error);
+        }
+        _isLoadingLedger = false;
+    }
+
+    private async Task LoadAgingAsync()
+    {
+        _isLoadingAging = true;
+        var result = await ApiClient.GetCustomerAgingReportAsync();
+        if (result.Success && result.Data is not null)
+        {
+            _aging = result.Data;
+        }
+        else
+        {
+            Snackbar.Add(result.Error?.Message ?? "Failed to load aging report.", Severity.Error);
+        }
+        _isLoadingAging = false;
+    }
+}

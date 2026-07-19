@@ -14,6 +14,8 @@ internal static class SupplierMappings
         Phone = supplier.Phone,
         Address = supplier.Address,
         TaxNumber = supplier.TaxNumber,
+        CreditLimit = supplier.CreditLimit,
+        PaymentTerms = supplier.PaymentTerms,
         IsActive = supplier.IsActive,
     };
 }

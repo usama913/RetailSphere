@@ -2,6 +2,7 @@
 @using RetailSphere.Contracts.Admin
 @using RetailSphere.Contracts.Finance
 @using RetailSphere.Contracts.Inventory
+@using RetailSphere.Contracts.Reporting
 @attribute [Authorize]
 @inject IApiClient ApiClient
 @inject AuthenticationStateProvider AuthStateProvider
@@ -68,6 +69,34 @@
         </MudItem>
     }
 </MudGrid>
+
+@if (_canViewFinancials && _financialSummary is not null)
+{
+    <MudText Typo="Typo.h6" Class="mt-6 mb-2">Accounts Payable &amp; Receivable</MudText>
+    <MudGrid>
+        <MudItem xs="12" sm="6" md="3">
+            <KpiCard Title="Total Payable (A/P)" Value="@_financialSummary.AccountsPayable.ToString("0.00")" Icon="@Icons.Material.Filled.RequestQuote" AccentColor="Color.Error" />
+        </MudItem>
+        <MudItem xs="12" sm="6" md="3">
+            <KpiCard Title="Total Receivable (A/R)" Value="@_financialSummary.AccountsReceivable.ToString("0.00")" Icon="@Icons.Material.Filled.AccountBalance" AccentColor="Color.Info" />
+        </MudItem>
+        <MudItem xs="12" sm="6" md="3">
+            <KpiCard Title="Overdue Payable" Value="@_financialSummary.OverdueSupplierAmount.ToString("0.00")" Icon="@Icons.Material.Filled.ErrorOutline" AccentColor="Color.Warning" />
+        </MudItem>
+        <MudItem xs="12" sm="6" md="3">
+            <KpiCard Title="Overdue Receivable" Value="@_financialSummary.OverdueCustomerAmount.ToString("0.00")" Icon="@Icons.Material.Filled.ErrorOutline" AccentColor="Color.Warning" />
+        </MudItem>
+        <MudItem xs="12" sm="6" md="3">
+            <KpiCard Title="Today's Collections" Value="@_financialSummary.TodaysCollections.ToString("0.00")" Icon="@Icons.Material.Filled.Payments" AccentColor="Color.Success" />
+        </MudItem>
+        <MudItem xs="12" sm="6" md="3">
+            <KpiCard Title="Today's Supplier Payments" Value="@_financialSummary.TodaysSupplierPayments.ToString("0.00")" Icon="@Icons.Material.Filled.Payment" AccentColor="Color.Secondary" />
+        </MudItem>
+        <MudItem xs="12" sm="6" md="3">
+            <KpiCard Title="Net Cash Flow Today" Value="@_financialSummary.NetCashFlowToday.ToString("0.00")" Icon="@Icons.Material.Filled.TrendingUp" AccentColor="@(_financialSummary.NetCashFlowToday >= 0 ? Color.Success : Color.Error)" />
+        </MudItem>
+    </MudGrid>
+}
 
 @if (_canViewCashRegister && !_branchId.HasValue)
 {
@@ -158,6 +187,7 @@
     private List<StockItemDto> _nearExpiryItems = new();
     private List<StockItemDto> _lowStockDisplayItems = new();
     private List<StockItemDto> _nearExpiryDisplayItems = new();
+    private FinancialSummaryDto? _financialSummary;
 
     private bool _canViewSales
     {
@@ -177,6 +207,11 @@
     private bool _canViewStock
     {
         get { return _permissions.Contains("inventory.stock.view"); }
+    }
+
+    private bool _canViewFinancials
+    {
+        get { return _permissions.Contains("reporting.view"); }
     }
 
     protected override async Task OnInitializedAsync()
@@ -249,6 +284,11 @@
         if (_canViewStock)
         {
             loadTasks.Add(LoadStockAsync());
+        }
+
+        if (_canViewFinancials)
+        {
+            loadTasks.Add(LoadFinancialSummaryAsync());
         }
 
         await Task.WhenAll(loadTasks);
@@ -326,6 +366,12 @@
             .OrderBy(s => s.ExpiryDate)
             .ToList();
         _nearExpiryDisplayItems = _nearExpiryItems.Take(10).ToList();
+    }
+
+    private async Task LoadFinancialSummaryAsync()
+    {
+        var result = await ApiClient.GetFinancialSummaryAsync();
+        _financialSummary = result.Success ? result.Data : null;
     }
 
     private string GetOpeningBalanceDisplay()

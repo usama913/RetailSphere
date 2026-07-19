@@ -10,4 +10,6 @@ public sealed record CreateSupplierCommand(
     string? Email,
     string? Phone,
     string? Address,
-    string? TaxNumber) : IRequest<Result<SupplierDto>>;
+    string? TaxNumber,
+    decimal? CreditLimit,
+    string? PaymentTerms) : IRequest<Result<SupplierDto>>;

@@ -55,7 +55,9 @@ public sealed class SalesOrdersController(ISender sender) : ApiControllerBase
             .ToList();
 
         var result = await sender.Send(
-            new CreateSalesOrderCommand(request.BranchId, request.CustomerId, request.PaymentMethod, request.OrderDiscountAmount, request.AmountPaid, request.Notes, lines),
+            new CreateSalesOrderCommand(
+                request.BranchId, request.CustomerId, request.PaymentMethod, request.OrderDiscountAmount, request.AmountPaid, request.Notes,
+                request.PaymentTerms, request.DueDate, request.OverrideCreditLimit, lines),
             cancellationToken);
         return HandleResult(result);
     }

@@ -22,6 +22,8 @@ public sealed class SalesOrderConfiguration : IEntityTypeConfiguration<SalesOrde
 
         builder.Property(s => s.Status).HasMaxLength(20).HasDefaultValue("Completed").IsRequired();
         builder.Property(s => s.OrderDate);
+        builder.Property(s => s.DueDate);
+        builder.Property(s => s.PaymentTerms).HasMaxLength(30);
         builder.Property(s => s.PaymentMethod).HasMaxLength(20).HasDefaultValue("Cash").IsRequired();
         builder.Property(s => s.OrderDiscountAmount).HasColumnType("decimal(18,2)").HasDefaultValue(0m);
         builder.Property(s => s.AmountPaid).HasColumnType("decimal(18,2)").HasDefaultValue(0m);
@@ -34,6 +36,8 @@ public sealed class SalesOrderConfiguration : IEntityTypeConfiguration<SalesOrde
         builder.Ignore(s => s.TaxAmount);
         builder.Ignore(s => s.TotalAmount);
         builder.Ignore(s => s.ChangeDue);
+        builder.Ignore(s => s.OutstandingBalance);
+        builder.Ignore(s => s.PaymentStatus);
 
         builder.HasMany(s => s.Lines)
             .WithOne()

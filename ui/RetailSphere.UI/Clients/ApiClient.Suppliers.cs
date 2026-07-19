@@ -14,6 +14,9 @@ public sealed partial class ApiClient
     public Task<ApiResponse<SupplierDto>> UpdateSupplierAsync(long id, UpdateSupplierRequest request, CancellationToken cancellationToken = default) =>
         PutAsync<UpdateSupplierRequest, SupplierDto>($"suppliers/{id}", request, cancellationToken);
 
+    public Task<ApiResponse<SupplierDto>> UpdateSupplierCreditTermsAsync(long id, UpdateSupplierCreditTermsRequest request, CancellationToken cancellationToken = default) =>
+        PutAsync<UpdateSupplierCreditTermsRequest, SupplierDto>($"suppliers/{id}/credit-terms", request, cancellationToken);
+
     public Task<ApiResponse<object>> ActivateSupplierAsync(long id, CancellationToken cancellationToken = default) =>
         PostAsync<object>($"suppliers/{id}/activate", cancellationToken);
 
