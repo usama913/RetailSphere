@@ -1,5 +1,9 @@
 @page "/"
+@using RetailSphere.Contracts.Admin
+@using RetailSphere.Contracts.Finance
+@using RetailSphere.Contracts.Inventory
 @attribute [Authorize]
+@inject IApiClient ApiClient
 @inject AuthenticationStateProvider AuthStateProvider
 
 <PageTitle>Dashboard - RetailSphere</PageTitle>
@@ -14,36 +18,174 @@
     <MudIcon Icon="@Icons.Material.Filled.Insights" Style="color: rgba(255,255,255,0.25); font-size: 96px;" />
 </div>
 
-<MudGrid>
-    <MudItem xs="12" sm="6" md="3">
-        <KpiCard Title="Today's Sales" Value="—" Icon="@Icons.Material.Filled.PointOfSale" AccentColor="Color.Primary" />
-    </MudItem>
-    <MudItem xs="12" sm="6" md="3">
-        <KpiCard Title="Low Stock Alerts" Value="—" Icon="@Icons.Material.Filled.WarningAmber" AccentColor="Color.Warning" />
-    </MudItem>
-    <MudItem xs="12" sm="6" md="3">
-        <KpiCard Title="Open Cash Registers" Value="—" Icon="@Icons.Material.Filled.Storefront" AccentColor="Color.Info" />
-    </MudItem>
-    <MudItem xs="12" sm="6" md="3">
-        <KpiCard Title="Pending Purchase Orders" Value="—" Icon="@Icons.Material.Filled.LocalShipping" AccentColor="Color.Secondary" />
+<MudGrid Class="mb-4">
+    <MudItem xs="12" sm="6" md="4">
+        <MudSelect T="long?" Value="_branchId" ValueChanged="OnBranchChangedAsync" Label="Branch" Variant="Variant.Outlined" Margin="Margin.Dense">
+            <MudSelectItem T="long?" Value="@((long?)null)">All branches</MudSelectItem>
+            @foreach (var branch in _branches)
+            {
+                <MudSelectItem T="long?" Value="@((long?)branch.Id)">@branch.Name</MudSelectItem>
+            }
+        </MudSelect>
     </MudItem>
 </MudGrid>
 
-<MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Class="mt-6" Icon="@Icons.Material.Filled.Construction">
-    This is the Phase 0 foundations shell — role-specific dashboard widgets (sales trend, top SKUs,
-    reorder alerts) are built out starting with the Catalog/Inventory/Sales modules per the roadmap.
-</MudAlert>
+<MudGrid>
+    @if (_canViewSales)
+    {
+        <MudItem xs="12" sm="6" md="3">
+            <KpiCard Title="Sales Today" Value="@_salesCountToday.ToString()" Icon="@Icons.Material.Filled.PointOfSale" AccentColor="Color.Primary" />
+        </MudItem>
+        <MudItem xs="12" sm="6" md="3">
+            <KpiCard Title="Sales Amount Today" Value="@_salesAmountToday.ToString("0.00")" Icon="@Icons.Material.Filled.Payments" AccentColor="Color.Success" />
+        </MudItem>
+        <MudItem xs="12" sm="6" md="3">
+            <KpiCard Title="Profit Today (est.)" Value="@_profitToday.ToString("0.00")" Icon="@Icons.Material.Filled.TrendingUp" AccentColor="Color.Success" />
+        </MudItem>
+    }
+    @if (_canViewExpenses)
+    {
+        <MudItem xs="12" sm="6" md="3">
+            <KpiCard Title="Today's Expenses" Value="@_expensesToday.ToString("0.00")" Icon="@Icons.Material.Filled.Receipt" AccentColor="Color.Secondary" />
+        </MudItem>
+    }
+    @if (_canViewCashRegister)
+    {
+        <MudItem xs="12" sm="6" md="3">
+            <KpiCard Title="Opening Balance" Value="@GetOpeningBalanceDisplay()" Icon="@Icons.Material.Filled.AccountBalanceWallet" AccentColor="Color.Info" />
+        </MudItem>
+        <MudItem xs="12" sm="6" md="3">
+            <KpiCard Title="Current Cash Balance" Value="@GetCurrentCashBalanceDisplay()" Icon="@Icons.Material.Filled.Storefront" AccentColor="Color.Info" />
+        </MudItem>
+    }
+    @if (_canViewStock)
+    {
+        <MudItem xs="12" sm="6" md="3">
+            <KpiCard Title="Low Stock Alerts" Value="@_lowStockItems.Count.ToString()" Icon="@Icons.Material.Filled.WarningAmber" AccentColor="Color.Warning" />
+        </MudItem>
+        <MudItem xs="12" sm="6" md="3">
+            <KpiCard Title="Products Near Expiry" Value="@_nearExpiryItems.Count.ToString()" Icon="@Icons.Material.Filled.EventBusy" AccentColor="Color.Warning" />
+        </MudItem>
+    }
+</MudGrid>
+
+@if (_canViewCashRegister && !_branchId.HasValue)
+{
+    <MudAlert Severity="Severity.Info" Class="mt-4">Select a specific branch to see its Opening Balance and Current Cash Balance.</MudAlert>
+}
+
+@if (_canViewStock)
+{
+    <MudGrid Class="mt-2">
+        <MudItem xs="12" md="6">
+            <MudPaper Class="pa-4" Elevation="1">
+                <MudText Typo="Typo.h6" Class="mb-2">Low Stock Alerts</MudText>
+                @if (_lowStockItems.Count == 0)
+                {
+                    <MudText Typo="Typo.body2" Style="color: var(--mud-palette-text-secondary);">Nothing is below its reorder point.</MudText>
+                }
+                else
+                {
+                    <MudTable Items="@_lowStockDisplayItems" Dense="true" Hover="true">
+                        <HeaderContent>
+                            <MudTh>Product</MudTh>
+                            <MudTh>Branch</MudTh>
+                            <MudTh>On hand</MudTh>
+                            <MudTh>Reorder pt</MudTh>
+                        </HeaderContent>
+                        <RowTemplate>
+                            <MudTd DataLabel="Product">@GetProductLabel(context)</MudTd>
+                            <MudTd DataLabel="Branch">@GetBranchLabel(context)</MudTd>
+                            <MudTd DataLabel="On hand">@context.QuantityOnHand.ToString("0.###")</MudTd>
+                            <MudTd DataLabel="Reorder pt">@GetReorderPointLabel(context)</MudTd>
+                        </RowTemplate>
+                    </MudTable>
+                }
+            </MudPaper>
+        </MudItem>
+        <MudItem xs="12" md="6">
+            <MudPaper Class="pa-4" Elevation="1">
+                <MudText Typo="Typo.h6" Class="mb-2">Products Near Expiry</MudText>
+                @if (_nearExpiryItems.Count == 0)
+                {
+                    <MudText Typo="Typo.body2" Style="color: var(--mud-palette-text-secondary);">Nothing is expiring in the next 30 days.</MudText>
+                }
+                else
+                {
+                    <MudTable Items="@_nearExpiryDisplayItems" Dense="true" Hover="true">
+                        <HeaderContent>
+                            <MudTh>Product</MudTh>
+                            <MudTh>Branch</MudTh>
+                            <MudTh>On hand</MudTh>
+                            <MudTh>Expiry</MudTh>
+                        </HeaderContent>
+                        <RowTemplate>
+                            <MudTd DataLabel="Product">@GetProductLabel(context)</MudTd>
+                            <MudTd DataLabel="Branch">@GetBranchLabel(context)</MudTd>
+                            <MudTd DataLabel="On hand">@context.QuantityOnHand.ToString("0.###")</MudTd>
+                            <MudTd DataLabel="Expiry">
+                                @GetExpiryLabel(context)
+                                @if (IsExpired(context))
+                                {
+                                    <MudChip T="string" Size="Size.Small" Color="Color.Error" Class="ml-1">Expired</MudChip>
+                                }
+                            </MudTd>
+                        </RowTemplate>
+                    </MudTable>
+                }
+            </MudPaper>
+        </MudItem>
+    </MudGrid>
+}
 
 @code {
+    private const int BulkFetchLimit = 2000;
+
     private string _greeting = "Welcome";
     private string _firstNamePart = "";
     private string _today = DateTime.Now.ToString("dddd, MMMM d");
+    private HashSet<string> _permissions = new();
+
+    private IReadOnlyList<BranchDto> _branches = new List<BranchDto>();
+    private long? _branchId;
+
+    private int _salesCountToday;
+    private decimal _salesAmountToday;
+    private decimal _profitToday;
+    private decimal _expensesToday;
+    private CashRegisterSessionDto? _currentSession;
+    private List<StockItemDto> _lowStockItems = new();
+    private List<StockItemDto> _nearExpiryItems = new();
+    private List<StockItemDto> _lowStockDisplayItems = new();
+    private List<StockItemDto> _nearExpiryDisplayItems = new();
+
+    private bool _canViewSales
+    {
+        get { return _permissions.Contains("sales.orders.view"); }
+    }
+
+    private bool _canViewExpenses
+    {
+        get { return _permissions.Contains("finance.expenses.view"); }
+    }
+
+    private bool _canViewCashRegister
+    {
+        get { return _permissions.Contains("finance.cashregister.view"); }
+    }
+
+    private bool _canViewStock
+    {
+        get { return _permissions.Contains("inventory.stock.view"); }
+    }
 
     protected override async Task OnInitializedAsync()
     {
         var state = await AuthStateProvider.GetAuthenticationStateAsync();
         var email = state.User.FindFirst("email")?.Value ?? string.Empty;
-        _firstNamePart = email.Contains('@') ? email[..email.IndexOf('@')] : "there";
+        var atIndex = email.IndexOf('@');
+        _firstNamePart = atIndex > 0 ? email.Substring(0, atIndex) : "there";
+        _permissions = state.User.FindAll("permission").Select(c => c.Value).ToHashSet();
 
         var hour = DateTime.Now.Hour;
         if (hour < 12)
@@ -58,5 +200,186 @@
         {
             _greeting = "Good evening";
         }
+
+        var branchesResult = await ApiClient.GetBranchesAsync(includeInactive: false);
+        if (branchesResult.Success && branchesResult.Data is not null)
+        {
+            _branches = branchesResult.Data;
+        }
+
+        var branchClaim = state.User.FindFirst("branch_id")?.Value;
+        long claimedBranchId;
+        if (long.TryParse(branchClaim, out claimedBranchId) && _branches.Any(b => b.Id == claimedBranchId))
+        {
+            _branchId = claimedBranchId;
+        }
+        else
+        {
+            _branchId = null;
+        }
+
+        await LoadAsync();
+    }
+
+    private async Task OnBranchChangedAsync(long? branchId)
+    {
+        _branchId = branchId;
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        var loadTasks = new List<Task>();
+
+        if (_canViewSales)
+        {
+            loadTasks.Add(LoadSalesAsync());
+        }
+
+        if (_canViewExpenses)
+        {
+            loadTasks.Add(LoadExpensesAsync());
+        }
+
+        if (_canViewCashRegister)
+        {
+            loadTasks.Add(LoadCashRegisterAsync());
+        }
+
+        if (_canViewStock)
+        {
+            loadTasks.Add(LoadStockAsync());
+        }
+
+        await Task.WhenAll(loadTasks);
+    }
+
+    private async Task LoadSalesAsync()
+    {
+        var today = DateTime.UtcNow.Date;
+        var result = await ApiClient.GetSalesOrdersAsync(
+            1, BulkFetchLimit, null, _branchId, null, "Completed", today, today.AddDays(1));
+
+        if (!result.Success || result.Data is null)
+        {
+            _salesCountToday = 0;
+            _salesAmountToday = 0;
+            _profitToday = 0;
+            return;
+        }
+
+        var orders = result.Data.Data;
+        _salesCountToday = orders.Count;
+        _salesAmountToday = orders.Sum(o => o.TotalAmount);
+
+        decimal profitSum = 0;
+        foreach (var order in orders)
+        {
+            decimal costSum = 0;
+            foreach (var line in order.Lines)
+            {
+                costSum += line.CostPriceSnapshot * line.Quantity;
+            }
+            profitSum += order.TotalAmount - order.TaxAmount - costSum;
+        }
+        _profitToday = profitSum;
+    }
+
+    private async Task LoadExpensesAsync()
+    {
+        var today = DateTime.Today;
+        var result = await ApiClient.GetExpensesAsync(1, BulkFetchLimit, _branchId, today, today.AddDays(1), null);
+        _expensesToday = result.Success && result.Data is not null ? result.Data.Data.Sum(e => e.Amount) : 0;
+    }
+
+    private async Task LoadCashRegisterAsync()
+    {
+        if (!_branchId.HasValue)
+        {
+            _currentSession = null;
+            return;
+        }
+
+        var result = await ApiClient.GetCurrentCashRegisterSessionAsync(_branchId.Value);
+        _currentSession = result.Success ? result.Data : null;
+    }
+
+    private async Task LoadStockAsync()
+    {
+        var result = await ApiClient.GetStockItemsAsync(1, BulkFetchLimit, _branchId, null);
+        if (!result.Success || result.Data is null)
+        {
+            _lowStockItems = new List<StockItemDto>();
+            _nearExpiryItems = new List<StockItemDto>();
+            _lowStockDisplayItems = new List<StockItemDto>();
+            _nearExpiryDisplayItems = new List<StockItemDto>();
+            return;
+        }
+
+        var items = result.Data.Data;
+        _lowStockItems = items.Where(s => s.IsLowStock).ToList();
+        _lowStockDisplayItems = _lowStockItems.Take(10).ToList();
+
+        var horizon = DateTime.Today.AddDays(30);
+        _nearExpiryItems = items
+            .Where(s => s.ExpiryDate.HasValue && s.ExpiryDate.Value <= horizon)
+            .OrderBy(s => s.ExpiryDate)
+            .ToList();
+        _nearExpiryDisplayItems = _nearExpiryItems.Take(10).ToList();
+    }
+
+    private string GetOpeningBalanceDisplay()
+    {
+        if (_currentSession is null)
+        {
+            return "-";
+        }
+
+        return _currentSession.OpeningBalance.ToString("0.00");
+    }
+
+    private string GetCurrentCashBalanceDisplay()
+    {
+        if (_currentSession is null || !_currentSession.CurrentCashBalance.HasValue)
+        {
+            return "-";
+        }
+
+        return _currentSession.CurrentCashBalance.Value.ToString("0.00");
+    }
+
+    private string GetProductLabel(StockItemDto item)
+    {
+        if (!string.IsNullOrWhiteSpace(item.ProductName))
+        {
+            return item.ProductName;
+        }
+
+        if (!string.IsNullOrWhiteSpace(item.Sku))
+        {
+            return item.Sku;
+        }
+
+        return "-";
+    }
+
+    private string GetBranchLabel(StockItemDto item)
+    {
+        return string.IsNullOrWhiteSpace(item.BranchName) ? "-" : item.BranchName;
+    }
+
+    private string GetReorderPointLabel(StockItemDto item)
+    {
+        return item.ReorderPoint.HasValue ? item.ReorderPoint.Value.ToString("0.###") : "-";
+    }
+
+    private string GetExpiryLabel(StockItemDto item)
+    {
+        return item.ExpiryDate.HasValue ? item.ExpiryDate.Value.ToString("d") : "-";
+    }
+
+    private bool IsExpired(StockItemDto item)
+    {
+        return item.ExpiryDate.HasValue && item.ExpiryDate.Value <= DateTime.Today;
     }
 }

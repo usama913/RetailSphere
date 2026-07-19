@@ -43,6 +43,9 @@ public sealed class StockItemDto
     /// <summary>True when ReorderPoint is set and QuantityOnHand has dropped to or below it.</summary>
     public required bool IsLowStock { get; init; }
 
+    /// <summary>The variant's expiry/best-before date (null = not tracked for expiry), resolved from the current ProductVariant.</summary>
+    public DateTime? ExpiryDate { get; init; }
+
     public required IReadOnlyList<StockAdjustmentDto> Adjustments { get; init; }
 }
 

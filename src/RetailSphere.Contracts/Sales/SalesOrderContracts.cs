@@ -25,6 +25,10 @@ public sealed class SalesOrderLineDto
     public required decimal TaxAmount { get; init; }
 
     public required decimal LineTotal { get; init; }
+
+    public required decimal CostPriceSnapshot { get; init; }
+
+    public required decimal QuantityReturned { get; init; }
 }
 
 public sealed class SalesOrderDto

@@ -12,7 +12,8 @@ internal static class StockItemMappings
         string? productName,
         string? branchName,
         decimal? costPrice = null,
-        decimal? reorderPoint = null) => new()
+        decimal? reorderPoint = null,
+        DateTime? expiryDate = null) => new()
     {
         Id = stockItem.Id,
         ProductVariantId = stockItem.ProductVariantId,
@@ -26,6 +27,7 @@ internal static class StockItemMappings
         StockValue = stockItem.QuantityOnHand * (costPrice ?? 0m),
         ReorderPoint = reorderPoint,
         IsLowStock = reorderPoint.HasValue && stockItem.QuantityOnHand <= reorderPoint.Value,
+        ExpiryDate = expiryDate,
         Adjustments = stockItem.Adjustments
             .OrderByDescending(a => a.CreatedAtUtc)
             .Select(ToDto)

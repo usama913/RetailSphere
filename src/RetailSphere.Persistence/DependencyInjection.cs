@@ -5,6 +5,7 @@ using RetailSphere.Application.Common.Interfaces;
 using RetailSphere.Domain.Auditing;
 using RetailSphere.Domain.Catalog;
 using RetailSphere.Domain.Customers;
+using RetailSphere.Domain.Finance;
 using RetailSphere.Domain.IdentityAccess;
 using RetailSphere.Domain.Inventory;
 using RetailSphere.Domain.Organization;
@@ -56,6 +57,9 @@ public static class DependencyInjection
         services.AddScoped<IStockTransferRepository, StockTransferRepository>();
         services.AddScoped<ICustomerRepository, CustomerRepository>();
         services.AddScoped<ISalesOrderRepository, SalesOrderRepository>();
+        services.AddScoped<ISalesReturnRepository, SalesReturnRepository>();
+        services.AddScoped<IExpenseRepository, ExpenseRepository>();
+        services.AddScoped<ICashRegisterSessionRepository, CashRegisterSessionRepository>();
 
         return services;
     }

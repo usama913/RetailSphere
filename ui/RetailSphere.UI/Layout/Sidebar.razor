@@ -63,8 +63,9 @@
             <MudNavLink Href="customers" Icon="@Icons.Material.Filled.Groups" hidden="@(!HasPermission("customers.view") || !IsVisible("Customers"))">Customers</MudNavLink>
 
             <MudNavGroup Title="Finance" Icon="@Icons.Material.Filled.AccountBalance" @ref="_financeGroup"
-                         hidden="@(!IsVisible("Finance", "Cash Register", "Reports"))">
+                         hidden="@(!IsVisible("Finance", "Cash Register", "Expenses", "Reports"))">
                 <MudNavLink Href="finance/cash-register" Icon="@Icons.Material.Filled.PointOfSale" hidden="@(!HasPermission("finance.cashregister.view") || !IsVisible("Cash Register"))">Cash Register</MudNavLink>
+                <MudNavLink Href="finance/expenses" Icon="@Icons.Material.Filled.Payments" hidden="@(!HasPermission("finance.expenses.view") || !IsVisible("Expenses"))">Expenses</MudNavLink>
                 <MudNavLink Href="reporting/dashboard" Icon="@Icons.Material.Filled.BarChart" hidden="@(!HasPermission("reporting.view") || !IsVisible("Reports"))">Reports</MudNavLink>
             </MudNavGroup>
         </MudNavMenu>
@@ -86,7 +87,7 @@
     [Parameter] public EventCallback<bool> IsPinnedChanged { get; set; }
 
     private string? _searchString;
-    private HashSet<string> _permissions = [];
+    private HashSet<string> _permissions = new();
     private string _email = string.Empty;
     private string _initials = "?";
     private string _roleSummary = "Signed in";
@@ -104,17 +105,23 @@
         _permissions = state.User.FindAll("permission").Select(c => c.Value).ToHashSet();
 
         _email = state.User.FindFirst("email")?.Value ?? string.Empty;
-        _initials = string.IsNullOrEmpty(_email) ? "?" : _email[..1].ToUpperInvariant();
+        _initials = string.IsNullOrEmpty(_email) ? "?" : _email.Substring(0, 1).ToUpperInvariant();
 
         var roles = state.User.FindAll(System.Security.Claims.ClaimTypes.Role).Select(c => c.Value).ToList();
         _roleSummary = roles.Count > 0 ? string.Join(", ", roles) : "Signed in";
     }
 
-    private bool HasPermission(string code) => _permissions.Contains(code);
+    private bool HasPermission(string code)
+    {
+        return _permissions.Contains(code);
+    }
 
     private bool IsVisible(params string[] names)
     {
-        if (string.IsNullOrWhiteSpace(_searchString)) return true;
+        if (string.IsNullOrWhiteSpace(_searchString))
+        {
+            return true;
+        }
         return names.Any(n => n.Contains(_searchString, StringComparison.InvariantCultureIgnoreCase));
     }
 
@@ -126,12 +133,12 @@
 
     public void CloseAllNavGroups()
     {
-        if (_adminGroup is not null) _adminGroup.Expanded = false;
-        if (_catalogGroup is not null) _catalogGroup.Expanded = false;
-        if (_inventoryGroup is not null) _inventoryGroup.Expanded = false;
-        if (_purchasingGroup is not null) _purchasingGroup.Expanded = false;
-        if (_salesGroup is not null) _salesGroup.Expanded = false;
-        if (_financeGroup is not null) _financeGroup.Expanded = false;
+        if (_adminGroup is not null) { _adminGroup.Expanded = false; }
+        if (_catalogGroup is not null) { _catalogGroup.Expanded = false; }
+        if (_inventoryGroup is not null) { _inventoryGroup.Expanded = false; }
+        if (_purchasingGroup is not null) { _purchasingGroup.Expanded = false; }
+        if (_salesGroup is not null) { _salesGroup.Expanded = false; }
+        if (_financeGroup is not null) { _financeGroup.Expanded = false; }
         StateHasChanged();
     }
 }

@@ -1,0 +1,363 @@
+@page "/finance/expenses"
+@using RetailSphere.Contracts.Admin
+@using RetailSphere.Contracts.Finance
+@attribute [Authorize]
+@inject IApiClient ApiClient
+@inject AuthenticationStateProvider AuthStateProvider
+@inject ISnackbar Snackbar
+
+<PageTitle>Expenses - RetailSphere</PageTitle>
+
+@if (!_canView)
+{
+    <MudAlert Severity="Severity.Warning">You don't have permission to view expenses.</MudAlert>
+}
+else
+{
+
+<MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween" Class="mb-4">
+    <div>
+        <MudText Typo="Typo.h5">Expenses</MudText>
+        <MudText Typo="Typo.body2" Style="color: var(--mud-palette-text-secondary);">Rent, utilities, salaries, and other business costs.</MudText>
+    </div>
+    @if (_canEdit)
+    {
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" OnClick="ShowCreateForm">
+            New Expense
+        </MudButton>
+    }
+</MudStack>
+
+<MudGrid Class="mb-4">
+    <MudItem xs="12" sm="4" md="3">
+        <MudSelect T="long?" Value="_filterBranchId" ValueChanged="OnFilterBranchChangedAsync" Label="Branch" Variant="Variant.Outlined" Margin="Margin.Dense">
+            <MudSelectItem T="long?" Value="@((long?)null)">All branches</MudSelectItem>
+            @foreach (var branch in _branches)
+            {
+                <MudSelectItem T="long?" Value="@((long?)branch.Id)">@branch.Name</MudSelectItem>
+            }
+        </MudSelect>
+    </MudItem>
+    <MudItem xs="12" sm="4" md="3">
+        <MudSelect T="string" Value="_filterCategory" ValueChanged="OnFilterCategoryChangedAsync" Label="Category" Variant="Variant.Outlined" Margin="Margin.Dense">
+            <MudSelectItem T="string" Value="@string.Empty">All categories</MudSelectItem>
+            @foreach (var category in _categoryOptions)
+            {
+                <MudSelectItem T="string" Value="@category">@category</MudSelectItem>
+            }
+        </MudSelect>
+    </MudItem>
+</MudGrid>
+
+@if (_showForm)
+{
+    <MudPaper Class="pa-4 mb-4" Elevation="1">
+        <MudText Typo="Typo.h6" Class="mb-3">@(_editingId is null ? "New Expense" : "Edit Expense")</MudText>
+        <MudGrid>
+            <MudItem xs="12" sm="6" md="3">
+                <MudSelect T="long?" @bind-Value="_formBranchId" Label="Branch" Variant="Variant.Outlined" Disabled="@(_editingId is not null)">
+                    @foreach (var branch in _branches)
+                    {
+                        <MudSelectItem T="long?" Value="@((long?)branch.Id)">@branch.Name</MudSelectItem>
+                    }
+                </MudSelect>
+            </MudItem>
+            <MudItem xs="12" sm="6" md="3">
+                <MudDatePicker @bind-Date="_formExpenseDate" Label="Expense date" Variant="Variant.Outlined" />
+            </MudItem>
+            <MudItem xs="12" sm="6" md="3">
+                <MudNumericField @bind-Value="_formAmount" Label="Amount" Variant="Variant.Outlined" Min="0.01M" />
+            </MudItem>
+            <MudItem xs="12" sm="6" md="3">
+                <MudStack Row="true" Spacing="1" AlignItems="AlignItems.Center">
+                    <MudSelect T="string" @bind-Value="_formCategory" Label="Category" Variant="Variant.Outlined" Style="flex:1">
+                        @foreach (var category in _categoryOptions)
+                        {
+                            <MudSelectItem T="string" Value="@category">@category</MudSelectItem>
+                        }
+                    </MudSelect>
+                    <MudTooltip Text="Add a new category">
+                        <MudIconButton Icon="@Icons.Material.Filled.Add" Size="Size.Small" OnClick="@(() => _showAddCategory = !_showAddCategory)" />
+                    </MudTooltip>
+                </MudStack>
+                @if (_showAddCategory)
+                {
+                    <MudStack Row="true" Spacing="1" Class="mt-2" AlignItems="AlignItems.Center">
+                        <MudTextField @bind-Value="_newCategoryName" Label="New category name" Variant="Variant.Outlined" Margin="Margin.Dense" Style="flex:1" />
+                        <MudButton Variant="Variant.Outlined" Size="Size.Small" OnClick="AddNewCategory">Add</MudButton>
+                    </MudStack>
+                }
+            </MudItem>
+            <MudItem xs="12" sm="6">
+                <MudTextField @bind-Value="_formDescription" Label="Description" Variant="Variant.Outlined" />
+            </MudItem>
+            <MudItem xs="12" sm="6" Class="d-flex align-center">
+                <MudCheckBox @bind-Value="_formPaidFromCash" Label="Paid from cash drawer" />
+            </MudItem>
+        </MudGrid>
+        <MudStack Row="true" Class="mt-4" Spacing="2">
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="SaveAsync" Disabled="@_isSaving">Save</MudButton>
+            <MudButton Variant="Variant.Text" OnClick="CancelForm">Cancel</MudButton>
+        </MudStack>
+    </MudPaper>
+}
+
+<MudTable Items="@_expenses" Hover="true" Dense="true" Loading="@_isLoading">
+    <HeaderContent>
+        <MudTh>Date</MudTh>
+        <MudTh>Branch</MudTh>
+        <MudTh>Category</MudTh>
+        <MudTh>Description</MudTh>
+        <MudTh>Amount</MudTh>
+        <MudTh>Cash?</MudTh>
+        <MudTh>Recorded By</MudTh>
+        <MudTh>Actions</MudTh>
+    </HeaderContent>
+    <RowTemplate>
+        <MudTd DataLabel="Date">@context.ExpenseDate.ToString("d")</MudTd>
+        <MudTd DataLabel="Branch">@(context.BranchName ?? "—")</MudTd>
+        <MudTd DataLabel="Category">@context.Category</MudTd>
+        <MudTd DataLabel="Description">@(context.Description ?? "—")</MudTd>
+        <MudTd DataLabel="Amount">@context.Amount.ToString("0.00")</MudTd>
+        <MudTd DataLabel="Cash?">
+            <MudChip T="string" Size="Size.Small" Color="@(context.PaidFromCash ? Color.Info : Color.Default)">@(context.PaidFromCash ? "Cash" : "Other")</MudChip>
+        </MudTd>
+        <MudTd DataLabel="Recorded By">@(context.RecordedByUserName ?? "—")</MudTd>
+        <MudTd DataLabel="Actions">
+            @if (_canEdit)
+            {
+                <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small" OnClick="@(() => ShowEditForm(context))" />
+                <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" OnClick="@(() => DeleteAsync(context.Id))" />
+            }
+        </MudTd>
+    </RowTemplate>
+</MudTable>
+
+<MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center" Class="mt-2">
+    <MudText Typo="Typo.body2" Style="color: var(--mud-palette-text-secondary);">@_totalCount total</MudText>
+    <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1">
+        <MudIconButton Icon="@Icons.Material.Filled.ChevronLeft" Disabled="@(_page <= 1)" OnClick="@(() => ChangePageAsync(_page - 1))" />
+        <MudText Typo="Typo.body2">Page @_page of @_totalPages</MudText>
+        <MudIconButton Icon="@Icons.Material.Filled.ChevronRight" Disabled="@(_page >= _totalPages)" OnClick="@(() => ChangePageAsync(_page + 1))" />
+    </MudStack>
+</MudStack>
+
+}
+
+@code {
+    private static readonly IReadOnlyList<string> DefaultCategories = ["Rent", "Utilities", "Salaries", "Supplies", "Maintenance", "Marketing", "Other"];
+
+    private IReadOnlyList<BranchDto> _branches = [];
+    private IReadOnlyList<ExpenseDto> _expenses = [];
+    private List<string> _categoryOptions = DefaultCategories.ToList();
+    private HashSet<string> _permissions = [];
+
+    private bool _isLoading = true;
+    private bool _isSaving;
+    private bool _showForm;
+    private long? _editingId;
+
+    private bool _showAddCategory;
+    private string? _newCategoryName;
+
+    private long? _filterBranchId;
+    private string _filterCategory = string.Empty;
+    private int _page = 1;
+    private const int PageSize = 25;
+    private long _totalCount;
+
+    private long? _formBranchId;
+    private DateTime? _formExpenseDate = DateTime.Today;
+    private decimal _formAmount;
+    private string _formCategory = "Other";
+    private string? _formDescription;
+    private bool _formPaidFromCash = true;
+
+    private bool _canView => _permissions.Contains("finance.expenses.view");
+    private bool _canEdit => _permissions.Contains("finance.expenses.edit");
+
+    private int _totalPages = 1;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var state = await AuthStateProvider.GetAuthenticationStateAsync();
+        _permissions = state.User.FindAll("permission").Select(c => c.Value).ToHashSet();
+
+        if (!_canView)
+            return;
+
+        var branchesResult = await ApiClient.GetBranchesAsync(includeInactive: false);
+        if (branchesResult.Success && branchesResult.Data is not null)
+            _branches = branchesResult.Data;
+
+        await LoadCategoriesAsync();
+        await LoadAsync();
+    }
+
+    private async Task LoadCategoriesAsync()
+    {
+        var result = await ApiClient.GetExpenseCategoriesAsync();
+        if (result.Success && result.Data is not null && result.Data.Count > 0)
+            _categoryOptions = result.Data.ToList();
+    }
+
+    private async Task LoadAsync()
+    {
+        _isLoading = true;
+        var result = await ApiClient.GetExpensesAsync(
+            _page, PageSize, _filterBranchId, category: string.IsNullOrWhiteSpace(_filterCategory) ? null : _filterCategory);
+
+        if (result.Success && result.Data is not null)
+        {
+            _expenses = result.Data.Data;
+            _totalCount = result.Data.TotalCount;
+            _totalPages = Math.Max(1, (int)Math.Ceiling(_totalCount / (double)PageSize));
+        }
+        else
+        {
+            Snackbar.Add(result.Error?.Message ?? "Failed to load expenses.", Severity.Error);
+        }
+        _isLoading = false;
+    }
+
+    private async Task ChangePageAsync(int newPage)
+    {
+        _page = newPage;
+        await LoadAsync();
+    }
+
+    private async Task OnFilterBranchChangedAsync(long? branchId)
+    {
+        _filterBranchId = branchId;
+        _page = 1;
+        await LoadAsync();
+    }
+
+    private async Task OnFilterCategoryChangedAsync(string value)
+    {
+        _filterCategory = value;
+        _page = 1;
+        await LoadAsync();
+    }
+
+    private void ShowCreateForm()
+    {
+        _editingId = null;
+        _formBranchId = _filterBranchId ?? _branches.FirstOrDefault()?.Id;
+        _formExpenseDate = DateTime.Today;
+        _formAmount = 0;
+        _formCategory = "Other";
+        _formDescription = null;
+        _formPaidFromCash = true;
+        _showAddCategory = false;
+        _newCategoryName = null;
+        _showForm = true;
+    }
+
+    private void ShowEditForm(ExpenseDto expense)
+    {
+        _editingId = expense.Id;
+        _formBranchId = expense.BranchId;
+        _formExpenseDate = expense.ExpenseDate;
+        _formAmount = expense.Amount;
+        _formCategory = expense.Category;
+        _formDescription = expense.Description;
+        _formPaidFromCash = expense.PaidFromCash;
+        _showAddCategory = false;
+        _newCategoryName = null;
+        _showForm = true;
+    }
+
+    private void CancelForm() => _showForm = false;
+
+    /// <summary>
+    /// Categories are freeform on the server (see Expense.NormalizeCategory's
+    /// remarks) — a brand-new name just needs to be selectable here and then
+    /// actually get saved on an expense to become "real" for everyone (the next
+    /// GetExpenseCategoriesAsync call will include it, since it's read from
+    /// distinct recorded values).
+    /// </summary>
+    private void AddNewCategory()
+    {
+        var trimmed = _newCategoryName?.Trim();
+        if (string.IsNullOrWhiteSpace(trimmed))
+        {
+            Snackbar.Add("Enter a category name.", Severity.Warning);
+            return;
+        }
+
+        if (!_categoryOptions.Any(c => string.Equals(c, trimmed, StringComparison.OrdinalIgnoreCase)))
+        {
+            _categoryOptions.Add(trimmed);
+            _categoryOptions = _categoryOptions.OrderBy(c => c, StringComparer.OrdinalIgnoreCase).ToList();
+        }
+
+        _formCategory = trimmed;
+        _newCategoryName = null;
+        _showAddCategory = false;
+    }
+
+    private async Task SaveAsync()
+    {
+        if (_formBranchId is null)
+        {
+            Snackbar.Add("Select a branch.", Severity.Warning);
+            return;
+        }
+
+        if (_formAmount <= 0)
+        {
+            Snackbar.Add("Amount must be greater than zero.", Severity.Warning);
+            return;
+        }
+
+        _isSaving = true;
+        var expenseDate = _formExpenseDate ?? DateTime.Today;
+
+        var result = _editingId is null
+            ? await ApiClient.CreateExpenseAsync(new CreateExpenseRequest
+            {
+                BranchId = _formBranchId.Value,
+                ExpenseDate = expenseDate,
+                Amount = _formAmount,
+                Category = _formCategory,
+                Description = _formDescription,
+                PaidFromCash = _formPaidFromCash,
+            })
+            : await ApiClient.UpdateExpenseAsync(_editingId.Value, new UpdateExpenseRequest
+            {
+                ExpenseDate = expenseDate,
+                Amount = _formAmount,
+                Category = _formCategory,
+                Description = _formDescription,
+                PaidFromCash = _formPaidFromCash,
+            });
+
+        if (result.Success)
+        {
+            Snackbar.Add("Expense saved.", Severity.Success);
+            _showForm = false;
+            await LoadCategoriesAsync();
+            await LoadAsync();
+        }
+        else
+        {
+            Snackbar.Add(result.Error?.Message ?? "Failed to save expense.", Severity.Error);
+        }
+        _isSaving = false;
+    }
+
+    private async Task DeleteAsync(long id)
+    {
+        var result = await ApiClient.DeleteExpenseAsync(id);
+        if (result.Success)
+        {
+            Snackbar.Add("Expense deleted.", Severity.Success);
+            await LoadAsync();
+        }
+        else
+        {
+            Snackbar.Add(result.Error?.Message ?? "Failed to delete expense.", Severity.Error);
+        }
+    }
+}

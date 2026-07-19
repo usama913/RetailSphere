@@ -132,7 +132,8 @@ public sealed class ProductsController(ISender sender) : ApiControllerBase
                 request.Width,
                 request.Height,
                 request.ReorderPoint,
-                request.AttributeValueIds),
+                request.AttributeValueIds,
+                request.ExpiryDate),
             cancellationToken);
         return HandleResult(result);
     }
@@ -157,7 +158,8 @@ public sealed class ProductsController(ISender sender) : ApiControllerBase
                 request.Width,
                 request.Height,
                 request.ReorderPoint,
-                request.AttributeValueIds),
+                request.AttributeValueIds,
+                request.ExpiryDate),
             cancellationToken);
         return HandleResult(result);
     }

@@ -31,6 +31,12 @@ public sealed class SalesOrderLine : Entity<long>
 
     public decimal DiscountAmount { get; private set; }
 
+    /// <summary>ProductVariant.CostPrice at sale time (0 if the variant had no cost price set) — feeds the "Total Profit (Today)" dashboard widget. Snapshot for the same reason as UnitPrice: a completed sale's margin shouldn't drift if the catalog's cost price changes later.</summary>
+    public decimal CostPriceSnapshot { get; private set; }
+
+    /// <summary>How much of Quantity has been returned via the Returns workflow so far — lets the Return module cap a return at what's actually still out with the customer.</summary>
+    public decimal QuantityReturned { get; private set; }
+
     /// <summary>Tax portion of this line, derived from the snapshot values — not stored.</summary>
     public decimal TaxAmount => TaxTypeSnapshot == "Inclusive"
         ? (UnitPrice * Quantity) - (UnitPrice * Quantity / (1 + TaxRateSnapshot / 100m))
@@ -55,7 +61,8 @@ public sealed class SalesOrderLine : Entity<long>
         decimal unitPrice,
         decimal taxRateSnapshot,
         string? taxTypeSnapshot,
-        decimal discountAmount) => new()
+        decimal discountAmount,
+        decimal costPriceSnapshot = 0) => new()
         {
             SalesOrderId = salesOrderId,
             ProductId = productId,
@@ -67,5 +74,19 @@ public sealed class SalesOrderLine : Entity<long>
             TaxRateSnapshot = taxRateSnapshot,
             TaxTypeSnapshot = taxTypeSnapshot is "Inclusive" or "Exclusive" ? taxTypeSnapshot : "Exclusive",
             DiscountAmount = discountAmount,
+            CostPriceSnapshot = costPriceSnapshot,
         };
+
+    /// <summary>Called by the Returns workflow when items from this line are returned. Rejects returning more than what's left un-returned.</summary>
+    public Result IncreaseReturnedQuantity(decimal quantity)
+    {
+        if (quantity <= 0)
+            return Result.Failure(Error.Validation("SalesOrderLine.InvalidReturnQuantity", "Return quantity must be greater than zero."));
+
+        if (QuantityReturned + quantity > Quantity)
+            return Result.Failure(Error.Validation("SalesOrderLine.ReturnExceedsSold", "Return quantity exceeds what remains un-returned on this line."));
+
+        QuantityReturned += quantity;
+        return Result.Success();
+    }
 }

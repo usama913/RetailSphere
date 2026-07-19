@@ -184,3 +184,8 @@ html, body {
     right: 0.75rem;
     top: 0.5rem;
 }
+
+/* Receipt printing now happens in a dedicated popup window that
+   retailSphereReceipt.print() opens and writes its own minimal HTML/CSS into (see
+   wwwroot/js/receipt.js) — no print-specific rules are needed against the main
+   app's own stylesheet or DOM anymore. */

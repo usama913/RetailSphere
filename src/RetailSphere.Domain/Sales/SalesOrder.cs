@@ -112,7 +112,8 @@ public sealed class SalesOrder : AggregateRoot<long>, IAuditableEntity, ISoftDel
         decimal unitPrice,
         decimal taxRateSnapshot,
         string? taxTypeSnapshot,
-        decimal discountAmount)
+        decimal discountAmount,
+        decimal costPriceSnapshot = 0)
     {
         if (quantity <= 0)
             return Result.Failure<SalesOrderLine>(Error.Validation("SalesOrder.InvalidQuantity", "Quantity must be greater than zero."));
@@ -123,7 +124,7 @@ public sealed class SalesOrder : AggregateRoot<long>, IAuditableEntity, ISoftDel
         if (discountAmount < 0)
             return Result.Failure<SalesOrderLine>(Error.Validation("SalesOrder.InvalidDiscount", "Discount cannot be negative."));
 
-        var line = SalesOrderLine.Create(Id, productId, productVariantId, skuSnapshot, descriptionSnapshot, quantity, unitPrice, taxRateSnapshot, taxTypeSnapshot, discountAmount);
+        var line = SalesOrderLine.Create(Id, productId, productVariantId, skuSnapshot, descriptionSnapshot, quantity, unitPrice, taxRateSnapshot, taxTypeSnapshot, discountAmount, costPriceSnapshot);
         _lines.Add(line);
         return Result.Success(line);
     }

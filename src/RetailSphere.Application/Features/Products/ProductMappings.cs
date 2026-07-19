@@ -39,6 +39,7 @@ internal static class ProductMappings
         Width = variant.Width,
         Height = variant.Height,
         ReorderPoint = variant.ReorderPoint,
+        ExpiryDate = variant.ExpiryDate,
         IsActive = variant.IsActive,
         AttributeValueIds = variant.AttributeValueIds.ToList(),
     };

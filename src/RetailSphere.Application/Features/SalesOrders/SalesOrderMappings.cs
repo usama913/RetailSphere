@@ -43,5 +43,7 @@ internal static class SalesOrderMappings
         DiscountAmount = line.DiscountAmount,
         TaxAmount = line.TaxAmount,
         LineTotal = line.LineTotal,
+        CostPriceSnapshot = line.CostPriceSnapshot,
+        QuantityReturned = line.QuantityReturned,
     };
 }

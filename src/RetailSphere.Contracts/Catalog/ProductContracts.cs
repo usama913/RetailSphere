@@ -31,6 +31,9 @@ public sealed class ProductVariantDto
     /// <summary>Low-stock threshold (same across all branches). Null means no threshold is set.</summary>
     public decimal? ReorderPoint { get; init; }
 
+    /// <summary>Optional expiry/best-before date. Null means this variant isn't tracked for expiry.</summary>
+    public DateTime? ExpiryDate { get; init; }
+
     public required bool IsActive { get; init; }
 
     public required IReadOnlyList<long> AttributeValueIds { get; init; }
@@ -140,6 +143,9 @@ public sealed class AddVariantRequest
     /// <summary>Optional low-stock threshold — the Products/Branch Stock pages flag a variant when quantity drops to or below this.</summary>
     public decimal? ReorderPoint { get; init; }
 
+    /// <summary>Optional expiry/best-before date — feeds the "Products Near Expiry" dashboard widget.</summary>
+    public DateTime? ExpiryDate { get; init; }
+
     public IReadOnlyList<long> AttributeValueIds { get; init; } = [];
 }
 
@@ -168,6 +174,8 @@ public sealed class UpdateVariantRequest
     public decimal? Height { get; init; }
 
     public decimal? ReorderPoint { get; init; }
+
+    public DateTime? ExpiryDate { get; init; }
 
     public IReadOnlyList<long> AttributeValueIds { get; init; } = [];
 }

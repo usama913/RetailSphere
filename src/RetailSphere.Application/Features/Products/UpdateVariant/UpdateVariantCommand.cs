@@ -19,4 +19,5 @@ public sealed record UpdateVariantCommand(
     decimal? Width,
     decimal? Height,
     decimal? ReorderPoint,
-    IReadOnlyList<long> AttributeValueIds) : IRequest<Result<ProductDto>>;
+    IReadOnlyList<long> AttributeValueIds,
+    DateTime? ExpiryDate = null) : IRequest<Result<ProductDto>>;

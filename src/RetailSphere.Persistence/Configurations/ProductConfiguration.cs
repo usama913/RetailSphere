@@ -85,6 +85,7 @@ public sealed class ProductVariantConfiguration : IEntityTypeConfiguration<Produ
         builder.Property(v => v.Width).HasColumnType("decimal(10,3)");
         builder.Property(v => v.Height).HasColumnType("decimal(10,3)");
         builder.Property(v => v.ReorderPoint).HasColumnType("decimal(18,3)");
+        builder.Property(v => v.ExpiryDate);
 
         builder.Property(v => v.IsActive).HasDefaultValue(true);
 

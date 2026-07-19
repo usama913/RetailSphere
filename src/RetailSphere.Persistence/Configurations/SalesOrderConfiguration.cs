@@ -78,6 +78,8 @@ public sealed class SalesOrderLineConfiguration : IEntityTypeConfiguration<Sales
         builder.Property(l => l.TaxRateSnapshot).HasColumnType("decimal(5,2)").HasDefaultValue(0m);
         builder.Property(l => l.TaxTypeSnapshot).HasMaxLength(20).HasDefaultValue("Exclusive").IsRequired();
         builder.Property(l => l.DiscountAmount).HasColumnType("decimal(18,2)").HasDefaultValue(0m);
+        builder.Property(l => l.CostPriceSnapshot).HasColumnType("decimal(18,2)").HasDefaultValue(0m);
+        builder.Property(l => l.QuantityReturned).HasColumnType("decimal(18,3)").HasDefaultValue(0m);
 
         // Computed, not stored.
         builder.Ignore(l => l.TaxAmount);

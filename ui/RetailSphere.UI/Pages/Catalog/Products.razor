@@ -68,7 +68,7 @@ else
             </MudItem>
             <MudItem xs="12" sm="6">
                 <MudSelect T="long?" @bind-Value="_formCategoryId" Label="Category" Variant="Variant.Outlined">
-                    <MudSelectItem T="long?" Value="@((long?)null)">— None —</MudSelectItem>
+                    <MudSelectItem T="long?" Value="@((long?)null)">(None)</MudSelectItem>
                     @foreach (var category in _categories)
                     {
                         <MudSelectItem T="long?" Value="@((long?)category.Id)">@category.Name</MudSelectItem>
@@ -77,7 +77,7 @@ else
             </MudItem>
             <MudItem xs="12" sm="6">
                 <MudSelect T="long?" @bind-Value="_formBrandId" Label="Brand" Variant="Variant.Outlined">
-                    <MudSelectItem T="long?" Value="@((long?)null)">— None —</MudSelectItem>
+                    <MudSelectItem T="long?" Value="@((long?)null)">(None)</MudSelectItem>
                     @foreach (var brand in _brands)
                     {
                         <MudSelectItem T="long?" Value="@((long?)brand.Id)">@brand.Name</MudSelectItem>
@@ -86,7 +86,7 @@ else
             </MudItem>
             <MudItem xs="12" sm="6">
                 <MudSelect T="long?" @bind-Value="_formUnitId" Label="Unit" Variant="Variant.Outlined">
-                    <MudSelectItem T="long?" Value="@((long?)null)">— None —</MudSelectItem>
+                    <MudSelectItem T="long?" Value="@((long?)null)">(None)</MudSelectItem>
                     @foreach (var unit in _units)
                     {
                         <MudSelectItem T="long?" Value="@((long?)unit.Id)">@unit.Name (@unit.ShortCode)</MudSelectItem>
@@ -110,7 +110,7 @@ else
             <MudDivider Class="my-4" />
             <MudText Typo="Typo.subtitle1">Variants</MudText>
             <MudText Typo="Typo.body2" Class="mb-2" Style="color: var(--mud-palette-text-secondary);">
-                All variants sell in this product's unit: @(_units.FirstOrDefault(u => u.Id == _formUnitId)?.Name ?? "— none selected —")
+                All variants sell in this product's unit: @(_units.FirstOrDefault(u => u.Id == _formUnitId)?.Name ?? "(none selected)")
             </MudText>
 
             @if (_canViewStock && _branches.Count > 0)
@@ -142,6 +142,7 @@ else
                         <MudTh>Compare-at</MudTh>
                         <MudTh>Tax %</MudTh>
                         <MudTh>Reorder pt</MudTh>
+                        <MudTh>Expiry</MudTh>
                         <MudTh>Stock</MudTh>
                         <MudTh>Status</MudTh>
                         <MudTh>Actions</MudTh>
@@ -150,11 +151,18 @@ else
                         <MudTd DataLabel="SKU">@context.Sku</MudTd>
                         <MudTd DataLabel="Variant">@GetVariantAttributeLabel(context)</MudTd>
                         <MudTd DataLabel="Barcode">@context.Barcode</MudTd>
-                        <MudTd DataLabel="Cost">@(context.CostPrice?.ToString("0.00") ?? "—")</MudTd>
+                        <MudTd DataLabel="Cost">@(context.CostPrice?.ToString("0.00") ?? "-")</MudTd>
                         <MudTd DataLabel="Price">@context.Price.ToString("0.00")</MudTd>
-                        <MudTd DataLabel="Compare-at">@(context.CompareAtPrice?.ToString("0.00") ?? "—")</MudTd>
+                        <MudTd DataLabel="Compare-at">@(context.CompareAtPrice?.ToString("0.00") ?? "-")</MudTd>
                         <MudTd DataLabel="Tax %">@context.TaxRate.ToString("0.##") (@context.TaxType)</MudTd>
-                        <MudTd DataLabel="Reorder pt">@(context.ReorderPoint?.ToString("0.###") ?? "—")</MudTd>
+                        <MudTd DataLabel="Reorder pt">@(context.ReorderPoint?.ToString("0.###") ?? "-")</MudTd>
+                        <MudTd DataLabel="Expiry">
+                            @(context.ExpiryDate?.ToString("d") ?? "-")
+                            @if (IsVariantNearExpiry(context))
+                            {
+                                <MudChip T="string" Size="Size.Small" Color="Color.Warning" Class="ml-1">Near expiry</MudChip>
+                            }
+                        </MudTd>
                         <MudTd DataLabel="Stock">
                             @if (_canAdjustStock && _stockBranchId is not null)
                             {
@@ -167,7 +175,7 @@ else
                             }
                             else
                             {
-                                <text>—</text>
+                                <text>-</text>
                             }
                             @if (IsVariantLowStock(context))
                             {
@@ -208,7 +216,7 @@ else
 
             <MudText Typo="Typo.subtitle2" Class="mt-2">Add variants</MudText>
             <MudText Typo="Typo.body2" Class="mb-2" Style="color: var(--mud-palette-text-secondary);">
-                Select the attribute values that apply (e.g. sizes, colors) and generate one variant per combination in a single step — e.g. 7 sizes × 2 colors creates 14 variants. Leave everything unchecked to add a single plain variant.
+                Select the attribute values that apply (e.g. sizes, colors) and generate one variant per combination in a single step - e.g. 7 sizes x 2 colors creates 14 variants. Leave everything unchecked to add a single plain variant.
             </MudText>
 
             @if (_attributes.Count > 0)
@@ -238,7 +246,7 @@ else
                 @if (GetGenCombinationCount() <= 1)
                 {
                     <MudItem xs="12" sm="6" md="3">
-                        <MudTextField @bind-Value="_genSku" Label="SKU (optional — auto-generated)" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                        <MudTextField @bind-Value="_genSku" Label="SKU (optional - auto-generated)" Variant="Variant.Outlined" Margin="Margin.Dense" />
                     </MudItem>
                     <MudItem xs="12" sm="6" md="3">
                         <MudTextField @bind-Value="_genBarcode" Label="Barcode (optional)" Variant="Variant.Outlined" Margin="Margin.Dense" />
@@ -249,6 +257,9 @@ else
                 </MudItem>
                 <MudItem xs="12" sm="6" md="3">
                     <MudNumericField @bind-Value="_genReorderPoint" Label="Reorder point (optional)" Variant="Variant.Outlined" Margin="Margin.Dense" Min="0" />
+                </MudItem>
+                <MudItem xs="12" sm="6" md="3">
+                    <MudDatePicker @bind-Date="_genExpiryDate" Label="Expiry date (optional)" Variant="Variant.Outlined" Margin="Margin.Dense" />
                 </MudItem>
                 <MudItem xs="12" sm="6" md="3" Class="d-flex align-center">
                     <MudSwitch T="bool" Value="_genUseProfitPercent" ValueChanged="OnGenUseProfitPercentChanged" Label="Price by profit %" Color="Color.Primary" />
@@ -335,8 +346,8 @@ else
     </HeaderContent>
     <RowTemplate>
         <MudTd DataLabel="Name">@context.Name</MudTd>
-        <MudTd DataLabel="Category">@(context.CategoryName ?? "—")</MudTd>
-        <MudTd DataLabel="Brand">@(context.BrandName ?? "—")</MudTd>
+        <MudTd DataLabel="Category">@(context.CategoryName ?? "-")</MudTd>
+        <MudTd DataLabel="Brand">@(context.BrandName ?? "-")</MudTd>
         <MudTd DataLabel="Variants">@context.Variants.Count</MudTd>
         <MudTd DataLabel="Status">
             <MudChip T="string" Size="Size.Small" Color="@(context.IsActive ? Color.Success : Color.Default)">
@@ -372,17 +383,17 @@ else
 @code {
     private const int PageSize = 25;
 
-    private static readonly IReadOnlyList<string> BarcodeTypes = ["C128", "C39", "EAN13", "EAN8", "UPCA", "UPCE", "QRCODE"];
-    private static readonly IReadOnlyList<string> TaxTypes = ["Exclusive", "Inclusive"];
+    private static readonly IReadOnlyList<string> BarcodeTypes = new List<string> { "C128", "C39", "EAN13", "EAN8", "UPCA", "UPCE", "QRCODE" };
+    private static readonly IReadOnlyList<string> TaxTypes = new List<string> { "Exclusive", "Inclusive" };
 
-    private IReadOnlyList<ProductDto> _products = [];
-    private IReadOnlyList<CategoryDto> _categories = [];
-    private IReadOnlyList<BrandDto> _brands = [];
-    private IReadOnlyList<UnitDto> _units = [];
-    private IReadOnlyList<ProductAttributeDto> _attributes = [];
-    private IReadOnlyList<BranchDto> _branches = [];
-    private List<StockItemDto> _stockItems = [];
-    private HashSet<string> _permissions = [];
+    private IReadOnlyList<ProductDto> _products = new List<ProductDto>();
+    private IReadOnlyList<CategoryDto> _categories = new List<CategoryDto>();
+    private IReadOnlyList<BrandDto> _brands = new List<BrandDto>();
+    private IReadOnlyList<UnitDto> _units = new List<UnitDto>();
+    private IReadOnlyList<ProductAttributeDto> _attributes = new List<ProductAttributeDto>();
+    private IReadOnlyList<BranchDto> _branches = new List<BranchDto>();
+    private List<StockItemDto> _stockItems = new();
+    private HashSet<string> _permissions = new();
 
     private bool _isLoading = true;
     private bool _isSaving;
@@ -403,12 +414,12 @@ else
     private bool _formManageStock = true;
     private bool _formNotForSelling;
 
-    private List<ProductVariantDto> _editingVariants = [];
-    private List<ProductImageDto> _editingImages = [];
+    private List<ProductVariantDto> _editingVariants = new();
+    private List<ProductImageDto> _editingImages = new();
 
     private string? _genSku;
     private string? _genBarcode;
-    private HashSet<long> _genSelectedValueIds = [];
+    private HashSet<long> _genSelectedValueIds = new();
     private decimal? _genCostPrice;
     private bool _genUseProfitPercent;
     private decimal _genProfitPercent;
@@ -422,6 +433,7 @@ else
     private decimal? _genWidth;
     private decimal? _genHeight;
     private decimal? _genReorderPoint;
+    private DateTime? _genExpiryDate;
     private bool _isGeneratingVariants;
 
     private string _imageUrl = string.Empty;
@@ -431,10 +443,25 @@ else
     private string? _stockReason;
     private bool _isSavingStock;
 
-    private bool _canView => _permissions.Contains("catalog.products.view");
-    private bool _canEdit => _permissions.Contains("catalog.products.edit");
-    private bool _canViewStock => _permissions.Contains("inventory.stock.view");
-    private bool _canAdjustStock => _permissions.Contains("inventory.adjustment.create");
+    private bool _canView
+    {
+        get { return _permissions.Contains("catalog.products.view"); }
+    }
+
+    private bool _canEdit
+    {
+        get { return _permissions.Contains("catalog.products.edit"); }
+    }
+
+    private bool _canViewStock
+    {
+        get { return _permissions.Contains("inventory.stock.view"); }
+    }
+
+    private bool _canAdjustStock
+    {
+        get { return _permissions.Contains("inventory.adjustment.create"); }
+    }
 
     protected override async Task OnInitializedAsync()
     {
@@ -445,23 +472,33 @@ else
         {
             var categoriesResult = await ApiClient.GetCategoriesAsync(includeInactive: true);
             if (categoriesResult.Success && categoriesResult.Data is not null)
+            {
                 _categories = categoriesResult.Data;
+            }
 
             var brandsResult = await ApiClient.GetBrandsAsync(includeInactive: true);
             if (brandsResult.Success && brandsResult.Data is not null)
+            {
                 _brands = brandsResult.Data;
+            }
 
             var unitsResult = await ApiClient.GetUnitsAsync(includeInactive: true);
             if (unitsResult.Success && unitsResult.Data is not null)
+            {
                 _units = unitsResult.Data;
+            }
 
             var attributesResult = await ApiClient.GetProductAttributesAsync();
             if (attributesResult.Success && attributesResult.Data is not null)
+            {
                 _attributes = attributesResult.Data;
+            }
 
             var branchesResult = await ApiClient.GetBranchesAsync(includeInactive: true);
             if (branchesResult.Success && branchesResult.Data is not null)
+            {
                 _branches = branchesResult.Data;
+            }
 
             await LoadAsync();
         }
@@ -527,9 +564,9 @@ else
         _formUnitId = null;
         _formManageStock = true;
         _formNotForSelling = false;
-        _editingVariants = [];
-        _editingImages = [];
-        _stockItems = [];
+        _editingVariants = new List<ProductVariantDto>();
+        _editingImages = new List<ProductImageDto>();
+        _stockItems = new List<StockItemDto>();
         _stockBranchId = null;
         _variantStockInputs.Clear();
         ResetGenerateForm();
@@ -566,22 +603,27 @@ else
     {
         if (_editingProductId is null || !_canViewStock)
         {
-            _stockItems = [];
+            _stockItems = new List<StockItemDto>();
             return;
         }
 
-        var stockResult = await ApiClient.GetStockItemsAsync(1, 500, productId: _editingProductId.Value);
-        _stockItems = stockResult.Success && stockResult.Data is not null ? stockResult.Data.Data.ToList() : [];
+        var stockResult = await ApiClient.GetStockItemsAsync(1, 500, null, _editingProductId.Value);
+        _stockItems = stockResult.Success && stockResult.Data is not null ? stockResult.Data.Data.ToList() : new List<StockItemDto>();
 
         if (_canAdjustStock)
         {
-            _stockBranchId ??= _branches.FirstOrDefault()?.Id;
+            if (_stockBranchId is null)
+            {
+                _stockBranchId = _branches.FirstOrDefault()?.Id;
+            }
             InitializeVariantStockInputs();
         }
     }
 
-    private decimal GetVariantTotalStock(long variantId) =>
-        _stockItems.Where(s => s.ProductVariantId == variantId).Sum(s => s.QuantityOnHand);
+    private decimal GetVariantTotalStock(long variantId)
+    {
+        return _stockItems.Where(s => s.ProductVariantId == variantId).Sum(s => s.QuantityOnHand);
+    }
 
     private async Task OnStockBranchChangedAsync(long? branchId)
     {
@@ -590,30 +632,32 @@ else
         await Task.CompletedTask;
     }
 
-    /// <summary>
-    /// Seeds the editable Stock column with each variant's current on-hand quantity
-    /// at the selected branch (0 if no StockItem exists there yet) — the inputs show
-    /// an absolute quantity, not a delta, so entering "5" for a brand-new variant
-    /// (starting at 0) sets it to exactly 5.
-    /// </summary>
     private void InitializeVariantStockInputs()
     {
         _variantStockInputs.Clear();
 
         if (_stockBranchId is null)
+        {
             return;
+        }
 
         foreach (var variant in _editingVariants)
         {
             var existing = _stockItems.FirstOrDefault(s => s.ProductVariantId == variant.Id && s.BranchId == _stockBranchId.Value);
-            _variantStockInputs[variant.Id] = existing?.QuantityOnHand ?? 0;
+            _variantStockInputs[variant.Id] = existing != null ? existing.QuantityOnHand : 0;
         }
     }
 
-    private decimal GetVariantStockInput(long variantId) =>
-        _variantStockInputs.TryGetValue(variantId, out var value) ? value : 0;
+    private decimal GetVariantStockInput(long variantId)
+    {
+        decimal value;
+        return _variantStockInputs.TryGetValue(variantId, out value) ? value : 0;
+    }
 
-    private void SetVariantStockInput(long variantId, decimal value) => _variantStockInputs[variantId] = value;
+    private void SetVariantStockInput(long variantId, decimal value)
+    {
+        _variantStockInputs[variantId] = value;
+    }
 
     private async Task SaveAllVariantStockAsync()
     {
@@ -630,7 +674,7 @@ else
         }
 
         var changes = _editingVariants
-            .Select(v => (Variant: v, Delta: GetVariantStockInput(v.Id) - GetCurrentBranchQty(v.Id)))
+            .Select(v => new { Variant = v, Delta = GetVariantStockInput(v.Id) - GetCurrentBranchQty(v.Id) })
             .Where(x => x.Delta != 0)
             .ToList();
 
@@ -644,26 +688,34 @@ else
         var successCount = 0;
         var failureCount = 0;
 
-        foreach (var (variant, delta) in changes)
+        foreach (var change in changes)
         {
             var result = await ApiClient.AdjustStockAsync(new AdjustStockRequest
             {
-                ProductVariantId = variant.Id,
+                ProductVariantId = change.Variant.Id,
                 BranchId = _stockBranchId.Value,
-                QuantityDelta = delta,
+                QuantityDelta = change.Delta,
                 Reason = _stockReason,
             });
 
             if (result.Success)
+            {
                 successCount++;
+            }
             else
+            {
                 failureCount++;
+            }
         }
 
         if (failureCount == 0)
+        {
             Snackbar.Add($"Saved stock for {successCount} variant(s).", Severity.Success);
+        }
         else
+        {
             Snackbar.Add($"Saved {successCount} variant(s); {failureCount} failed (e.g. would result in negative stock).", Severity.Warning);
+        }
 
         _stockReason = null;
         await LoadStockItemsAsync();
@@ -671,20 +723,23 @@ else
         _isSavingStock = false;
     }
 
-    private decimal GetCurrentBranchQty(long variantId) =>
-        _stockBranchId is null
-            ? 0
-            : _stockItems.FirstOrDefault(s => s.ProductVariantId == variantId && s.BranchId == _stockBranchId.Value)?.QuantityOnHand ?? 0;
+    private decimal GetCurrentBranchQty(long variantId)
+    {
+        if (_stockBranchId is null)
+        {
+            return 0;
+        }
 
-    /// <summary>
-    /// Joins a variant's AttributeValueIds back to their owning attribute's Name/Value
-    /// (e.g. "Size: 39 · Color: Red") so users can tell variants apart by more than an
-    /// opaque auto-generated SKU like "P6-V01".
-    /// </summary>
+        var item = _stockItems.FirstOrDefault(s => s.ProductVariantId == variantId && s.BranchId == _stockBranchId.Value);
+        return item != null ? item.QuantityOnHand : 0;
+    }
+
     private string GetVariantAttributeLabel(ProductVariantDto variant)
     {
         if (variant.AttributeValueIds.Count == 0)
-            return "—";
+        {
+            return "-";
+        }
 
         var parts = new List<string>();
         foreach (var attribute in _attributes)
@@ -695,21 +750,29 @@ else
                 .ToList();
 
             if (matched.Count > 0)
+            {
                 parts.Add($"{attribute.Name}: {string.Join(", ", matched)}");
+            }
         }
 
-        return parts.Count > 0 ? string.Join(" · ", parts) : "—";
+        return parts.Count > 0 ? string.Join(" | ", parts) : "-";
     }
 
-    /// <summary>True when the variant has a ReorderPoint set and its stock across all branches has dropped to or below it.</summary>
-    private bool IsVariantLowStock(ProductVariantDto variant) =>
-        _canViewStock && variant.ReorderPoint.HasValue && GetVariantTotalStock(variant.Id) <= variant.ReorderPoint.Value;
+    private bool IsVariantLowStock(ProductVariantDto variant)
+    {
+        return _canViewStock && variant.ReorderPoint.HasValue && GetVariantTotalStock(variant.Id) <= variant.ReorderPoint.Value;
+    }
+
+    private static bool IsVariantNearExpiry(ProductVariantDto variant)
+    {
+        return variant.ExpiryDate.HasValue && variant.ExpiryDate.Value <= DateTime.Today.AddDays(30);
+    }
 
     private void ResetGenerateForm()
     {
         _genSku = null;
         _genBarcode = null;
-        _genSelectedValueIds = [];
+        _genSelectedValueIds = new HashSet<long>();
         _genCostPrice = null;
         _genUseProfitPercent = false;
         _genProfitPercent = 0;
@@ -723,31 +786,42 @@ else
         _genWidth = null;
         _genHeight = null;
         _genReorderPoint = null;
+        _genExpiryDate = null;
         _imageUrl = string.Empty;
     }
 
     private void ToggleGenValue(long valueId, bool isSelected)
     {
         if (isSelected)
+        {
             _genSelectedValueIds.Add(valueId);
+        }
         else
+        {
             _genSelectedValueIds.Remove(valueId);
+        }
     }
 
-    private bool AreAllGenValuesSelected(ProductAttributeDto attribute) =>
-        attribute.Values.Count > 0 && attribute.Values.All(v => _genSelectedValueIds.Contains(v.Id));
+    private bool AreAllGenValuesSelected(ProductAttributeDto attribute)
+    {
+        return attribute.Values.Count > 0 && attribute.Values.All(v => _genSelectedValueIds.Contains(v.Id));
+    }
 
     private void ToggleSelectAllForGenAttribute(ProductAttributeDto attribute)
     {
         if (AreAllGenValuesSelected(attribute))
         {
             foreach (var value in attribute.Values)
+            {
                 _genSelectedValueIds.Remove(value.Id);
+            }
         }
         else
         {
             foreach (var value in attribute.Values)
+            {
                 _genSelectedValueIds.Add(value.Id);
+            }
         }
     }
 
@@ -767,27 +841,19 @@ else
     {
         _genUseProfitPercent = value;
         if (value)
+        {
             RecalculateGenPrice();
+        }
     }
 
     private void RecalculateGenPrice()
     {
-        if (_genUseProfitPercent && _genCostPrice is > 0)
+        if (_genUseProfitPercent && _genCostPrice.HasValue && _genCostPrice.Value > 0)
         {
             _genPrice = Math.Round(_genCostPrice.Value * (1 + _genProfitPercent / 100m), 2);
         }
     }
 
-    /// <summary>
-    /// Groups the currently-checked attribute values back by their owning attribute
-    /// (only attributes with at least one checked value are included), then takes the
-    /// cartesian product across those groups — e.g. Size {39,40} x Color {Red,Blue}
-    /// yields the 4 combinations [39,Red] [39,Blue] [40,Red] [40,Blue]. Each combination
-    /// becomes one AddVariantRequest.AttributeValueIds payload. If nothing is checked
-    /// (or the product has no attributes at all), this returns exactly one combination
-    /// with an empty AttributeValueIds list — i.e. "generate a single plain variant" —
-    /// so this one section covers both the matrix case and the single-variant case.
-    /// </summary>
     private List<List<long>> GetGenCombinations()
     {
         var groups = _attributes
@@ -796,7 +862,9 @@ else
             .ToList();
 
         if (groups.Count == 0)
-            return [[]];
+        {
+            return new List<List<long>> { new List<long>() };
+        }
 
         IEnumerable<List<long>> combinations = new List<List<long>> { new List<long>() };
         foreach (var valueGroup in groups)
@@ -809,12 +877,17 @@ else
         return combinations.ToList();
     }
 
-    private int GetGenCombinationCount() => GetGenCombinations().Count;
+    private int GetGenCombinationCount()
+    {
+        return GetGenCombinations().Count;
+    }
 
     private async Task GenerateVariantsAsync()
     {
         if (_editingProductId is null)
+        {
             return;
+        }
 
         if (_genUseProfitPercent && (_genCostPrice is null || _genCostPrice <= 0))
         {
@@ -824,9 +897,6 @@ else
 
         var combinations = GetGenCombinations();
 
-        // A manually entered SKU/Barcode only makes sense when exactly one variant is
-        // being created — the UI hides those fields once more than one combination is
-        // selected, but guard here too in case state gets out of sync with the render.
         var applyManualSkuAndBarcode = combinations.Count == 1;
 
         _isGeneratingVariants = true;
@@ -850,6 +920,7 @@ else
                 Width = _genWidth,
                 Height = _genHeight,
                 ReorderPoint = _genReorderPoint,
+                ExpiryDate = _genExpiryDate,
                 AttributeValueIds = combination,
             });
 
@@ -865,9 +936,13 @@ else
         }
 
         if (failureCount == 0)
+        {
             Snackbar.Add($"Created {successCount} variant(s).", Severity.Success);
+        }
         else
+        {
             Snackbar.Add($"Created {successCount} variant(s); {failureCount} failed (likely a duplicate combination already on this product).", Severity.Warning);
+        }
 
         ResetGenerateForm();
         await LoadAsync();
@@ -875,7 +950,10 @@ else
         _isGeneratingVariants = false;
     }
 
-    private void CancelForm() => _showForm = false;
+    private void CancelForm()
+    {
+        _showForm = false;
+    }
 
     private async Task SaveProductAsync()
     {
@@ -902,7 +980,7 @@ else
 
             if (createResult.Success && createResult.Data is not null)
             {
-                Snackbar.Add("Product created — you can now add variants and images below.", Severity.Success);
+                Snackbar.Add("Product created - you can now add variants and images below.", Severity.Success);
                 _editingProductId = createResult.Data.Id;
                 _editingVariants = createResult.Data.Variants.ToList();
                 _editingImages = createResult.Data.Images.ToList();
@@ -942,7 +1020,10 @@ else
 
     private async Task ActivateVariantAsync(long variantId)
     {
-        if (_editingProductId is null) return;
+        if (_editingProductId is null)
+        {
+            return;
+        }
 
         var result = await ApiClient.ActivateVariantAsync(_editingProductId.Value, variantId);
         if (result.Success && result.Data is not null)
@@ -957,7 +1038,10 @@ else
 
     private async Task DeactivateVariantAsync(long variantId)
     {
-        if (_editingProductId is null) return;
+        if (_editingProductId is null)
+        {
+            return;
+        }
 
         var result = await ApiClient.DeactivateVariantAsync(_editingProductId.Value, variantId);
         if (result.Success && result.Data is not null)
@@ -972,7 +1056,10 @@ else
 
     private async Task RemoveVariantAsync(long variantId)
     {
-        if (_editingProductId is null) return;
+        if (_editingProductId is null)
+        {
+            return;
+        }
 
         var result = await ApiClient.RemoveVariantAsync(_editingProductId.Value, variantId);
         if (result.Success && result.Data is not null)
@@ -990,7 +1077,9 @@ else
     private async Task AddImageAsync()
     {
         if (_editingProductId is null || string.IsNullOrWhiteSpace(_imageUrl))
+        {
             return;
+        }
 
         var result = await ApiClient.AddProductImageAsync(_editingProductId.Value, new AddProductImageRequest { Url = _imageUrl });
         if (result.Success && result.Data is not null)
@@ -1006,7 +1095,10 @@ else
 
     private async Task RemoveImageAsync(long imageId)
     {
-        if (_editingProductId is null) return;
+        if (_editingProductId is null)
+        {
+            return;
+        }
 
         var result = await ApiClient.RemoveProductImageAsync(_editingProductId.Value, imageId);
         if (result.Success && result.Data is not null)

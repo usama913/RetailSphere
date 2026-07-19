@@ -116,13 +116,14 @@ public sealed class Product : AggregateRoot<long>, IAuditableEntity, ISoftDeleta
         decimal? width,
         decimal? height,
         decimal? reorderPoint,
-        IEnumerable<long> attributeValueIds)
+        IEnumerable<long> attributeValueIds,
+        DateTime? expiryDate = null)
     {
         if (_variants.Any(v => v.Sku == sku.Value))
             return Result.Failure<ProductVariant>(Error.Conflict("Product.DuplicateSku", "A variant with this SKU already exists on this product."));
 
         var variant = ProductVariant.Create(
-            Id, sku, price, barcode, barcodeType, compareAtPrice, costPrice, taxRate, taxType, weight, length, width, height, reorderPoint, attributeValueIds);
+            Id, sku, price, barcode, barcodeType, compareAtPrice, costPrice, taxRate, taxType, weight, length, width, height, reorderPoint, attributeValueIds, expiryDate);
         _variants.Add(variant);
         return Result.Success(variant);
     }
@@ -141,7 +142,8 @@ public sealed class Product : AggregateRoot<long>, IAuditableEntity, ISoftDeleta
         decimal? width,
         decimal? height,
         decimal? reorderPoint,
-        IEnumerable<long> attributeValueIds)
+        IEnumerable<long> attributeValueIds,
+        DateTime? expiryDate = null)
     {
         var variant = _variants.FirstOrDefault(v => v.Id == variantId);
         if (variant is null)
@@ -151,6 +153,7 @@ public sealed class Product : AggregateRoot<long>, IAuditableEntity, ISoftDeleta
         variant.UpdateBarcode(barcode, barcodeType);
         variant.UpdatePhysicalAttributes(weight, length, width, height);
         variant.UpdateReorderPoint(reorderPoint);
+        variant.UpdateExpiryDate(expiryDate);
         variant.UpdateAttributeSelections(attributeValueIds);
         return Result.Success();
     }

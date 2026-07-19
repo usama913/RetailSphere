@@ -71,7 +71,8 @@ public sealed class AddVariantCommandHandler(
             request.Width,
             request.Height,
             request.ReorderPoint,
-            request.AttributeValueIds);
+            request.AttributeValueIds,
+            request.ExpiryDate);
         if (addResult.IsFailure)
             return Result.Failure<ProductDto>(addResult.Error);
 

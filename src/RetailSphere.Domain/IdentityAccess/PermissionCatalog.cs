@@ -68,5 +68,7 @@ public static class PermissionCatalog
         new(70, "finance.cashregister.view", "View Cash Register", "Finance"),
         new(71, "finance.cashregister.operate", "Open/Close Cash Register", "Finance"),
         new(72, "reporting.view", "View Reports", "Finance"),
+        new(73, "finance.expenses.view", "View Expenses", "Finance"),
+        new(74, "finance.expenses.edit", "Record/Edit Expenses", "Finance"),
     ];
 }

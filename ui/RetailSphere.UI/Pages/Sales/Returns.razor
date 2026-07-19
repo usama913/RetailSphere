@@ -1,0 +1,314 @@
+@page "/sales/returns"
+@using RetailSphere.Contracts.Sales
+@attribute [Authorize]
+@inject IApiClient ApiClient
+@inject AuthenticationStateProvider AuthStateProvider
+@inject ISnackbar Snackbar
+
+<PageTitle>Returns & Exchanges - RetailSphere</PageTitle>
+
+@if (!_canView)
+{
+    <MudAlert Severity="Severity.Warning">You don't have permission to view returns.</MudAlert>
+}
+else
+{
+
+<MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween" Class="mb-4">
+    <div>
+        <MudText Typo="Typo.h5">Returns &amp; Exchanges</MudText>
+        <MudText Typo="Typo.body2" Style="color: var(--mud-palette-text-secondary);">Look up the original invoice, choose what's coming back, and process the refund.</MudText>
+    </div>
+</MudStack>
+
+@if (_canCreate)
+{
+    <MudPaper Class="pa-4 mb-4" Elevation="1">
+        <MudText Typo="Typo.h6" Class="mb-2">Find the original sale</MudText>
+        <MudStack Row="true" Spacing="2" AlignItems="AlignItems.Start">
+            <MudTextField T="string" Value="@_invoiceSearch" ValueChanged="OnInvoiceSearchChanged" Label="Invoice number" Variant="Variant.Outlined"
+                          Placeholder="e.g. SO-202607-0001" Immediate="true" Style="max-width:320px" />
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="SearchInvoiceAsync" Disabled="@(_isSearching || string.IsNullOrWhiteSpace(_invoiceSearch))">
+                Search
+            </MudButton>
+        </MudStack>
+
+        @if (_searchResults.Count > 1)
+        {
+            <MudText Typo="Typo.body2" Class="mt-3 mb-1">Multiple matches — pick one:</MudText>
+            <MudTable Items="@_searchResults" Dense="true" Hover="true">
+                <HeaderContent>
+                    <MudTh>Invoice #</MudTh>
+                    <MudTh>Date</MudTh>
+                    <MudTh>Branch</MudTh>
+                    <MudTh>Customer</MudTh>
+                    <MudTh>Total</MudTh>
+                    <MudTh></MudTh>
+                </HeaderContent>
+                <RowTemplate>
+                    <MudTd DataLabel="Invoice #">@context.OrderNumber</MudTd>
+                    <MudTd DataLabel="Date">@context.OrderDate.ToLocalTime().ToString("g")</MudTd>
+                    <MudTd DataLabel="Branch">@(context.BranchName ?? "—")</MudTd>
+                    <MudTd DataLabel="Customer">@(context.CustomerName ?? "Walk-in")</MudTd>
+                    <MudTd DataLabel="Total">@context.TotalAmount.ToString("0.00")</MudTd>
+                    <MudTd><MudButton Variant="Variant.Text" Size="Size.Small" OnClick="@(() => SelectOrderAsync(context.Id))">Select</MudButton></MudTd>
+                </RowTemplate>
+            </MudTable>
+        }
+        else if (_searched && _searchResults.Count == 0)
+        {
+            <MudText Typo="Typo.body2" Class="mt-3" Style="color: var(--mud-palette-text-secondary);">No matching invoice found.</MudText>
+        }
+    </MudPaper>
+
+    @if (_selectedOrder is not null)
+    {
+        <MudPaper Class="pa-4 mb-4" Elevation="1">
+            <MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center" Class="mb-2">
+                <div>
+                    <MudText Typo="Typo.h6">@_selectedOrder.OrderNumber</MudText>
+                    <MudText Typo="Typo.body2" Style="color: var(--mud-palette-text-secondary);">
+                        @_selectedOrder.OrderDate.ToLocalTime().ToString("g") · @(_selectedOrder.BranchName ?? "—") · @(_selectedOrder.CustomerName ?? "Walk-in")
+                    </MudText>
+                </div>
+                <MudButton Variant="Variant.Text" Size="Size.Small" OnClick="ClearSelection">Change invoice</MudButton>
+            </MudStack>
+
+            <MudTable Items="@_selectedOrder.Lines" Dense="true" Hover="true">
+                <HeaderContent>
+                    <MudTh>Item</MudTh>
+                    <MudTh>Sold qty</MudTh>
+                    <MudTh>Already returned</MudTh>
+                    <MudTh>Remaining</MudTh>
+                    <MudTh>Return qty</MudTh>
+                </HeaderContent>
+                <RowTemplate>
+                    <MudTd DataLabel="Item">
+                        <MudText Typo="Typo.body2">@context.DescriptionSnapshot</MudText>
+                        <MudText Typo="Typo.caption" Style="color: var(--mud-palette-text-secondary);">@context.SkuSnapshot</MudText>
+                    </MudTd>
+                    <MudTd DataLabel="Sold qty">@context.Quantity.ToString("0.###")</MudTd>
+                    <MudTd DataLabel="Already returned">@context.QuantityReturned.ToString("0.###")</MudTd>
+                    <MudTd DataLabel="Remaining">@GetRemaining(context).ToString("0.###")</MudTd>
+                    <MudTd DataLabel="Return qty">
+                        <MudNumericField T="decimal" Value="@GetReturnQty(context.Id)" ValueChanged="@(v => SetReturnQty(context, v))"
+                                          Variant="Variant.Outlined" Margin="Margin.Dense" Min="0" Max="@GetRemaining(context)" Style="width:110px"
+                                          Disabled="@(GetRemaining(context) <= 0)" />
+                    </MudTd>
+                </RowTemplate>
+            </MudTable>
+
+            <MudTextField @bind-Value="_reason" Label="Reason (optional)" Variant="Variant.Outlined" Margin="Margin.Dense" Class="mt-3" Lines="2" />
+
+            <MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center" Class="mt-3">
+                <MudText Typo="Typo.subtitle1"><strong>Estimated refund: @GetEstimatedRefund().ToString("0.00")</strong></MudText>
+                <MudButton Variant="Variant.Filled" Color="Color.Error" OnClick="ProcessReturnAsync" Disabled="@(_isSaving || GetSelectedLineCount() == 0)">
+                    Process Return
+                </MudButton>
+            </MudStack>
+        </MudPaper>
+    }
+}
+
+@if (_lastReturn is not null)
+{
+    <MudAlert Severity="Severity.Success" Class="mb-4">
+        <MudText Typo="Typo.subtitle1"><strong>Return processed — @_lastReturn.ReturnNumber</strong></MudText>
+        <MudText Typo="Typo.body2">Refund: @_lastReturn.RefundAmount.ToString("0.00") against sale @_lastReturn.SalesOrderNumber</MudText>
+        <MudButton Variant="Variant.Text" Size="Size.Small" Class="mt-1" OnClick="@(() => _lastReturn = null)">Dismiss</MudButton>
+    </MudAlert>
+}
+
+<MudText Typo="Typo.h6" Class="mb-2">Return History</MudText>
+<MudTable Items="@_history" Dense="true" Hover="true" Loading="@_isLoadingHistory">
+    <HeaderContent>
+        <MudTh>Return #</MudTh>
+        <MudTh>Invoice #</MudTh>
+        <MudTh>Date</MudTh>
+        <MudTh>Branch</MudTh>
+        <MudTh>Customer</MudTh>
+        <MudTh>Refund</MudTh>
+        <MudTh>Reason</MudTh>
+    </HeaderContent>
+    <RowTemplate>
+        <MudTd DataLabel="Return #">@context.ReturnNumber</MudTd>
+        <MudTd DataLabel="Invoice #">@(context.SalesOrderNumber ?? "—")</MudTd>
+        <MudTd DataLabel="Date">@context.ReturnDate.ToLocalTime().ToString("g")</MudTd>
+        <MudTd DataLabel="Branch">@(context.BranchName ?? "—")</MudTd>
+        <MudTd DataLabel="Customer">@(context.CustomerName ?? "Walk-in")</MudTd>
+        <MudTd DataLabel="Refund">@context.RefundAmount.ToString("0.00")</MudTd>
+        <MudTd DataLabel="Reason">@(context.Reason ?? "—")</MudTd>
+    </RowTemplate>
+</MudTable>
+
+}
+
+@code {
+    private HashSet<string> _permissions = [];
+    private bool _canView => _permissions.Contains("sales.returns.view");
+    private bool _canCreate => _permissions.Contains("sales.returns.create");
+
+    private string _invoiceSearch = string.Empty;
+    private bool _isSearching;
+    private bool _searched;
+    private List<SalesOrderDto> _searchResults = [];
+    private SalesOrderDto? _selectedOrder;
+    private readonly Dictionary<long, decimal> _returnQuantities = new();
+    private string? _reason;
+    private bool _isSaving;
+    private SalesReturnDto? _lastReturn;
+
+    private IReadOnlyList<SalesReturnDto> _history = [];
+    private bool _isLoadingHistory;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var state = await AuthStateProvider.GetAuthenticationStateAsync();
+        _permissions = state.User.FindAll("permission").Select(c => c.Value).ToHashSet();
+
+        if (!_canView)
+            return;
+
+        await LoadHistoryAsync();
+    }
+
+    private async Task LoadHistoryAsync()
+    {
+        _isLoadingHistory = true;
+        var result = await ApiClient.GetSalesReturnsAsync(1, 50);
+        if (result.Success && result.Data is not null)
+            _history = result.Data.Data;
+        else
+            Snackbar.Add(result.Error?.Message ?? "Failed to load return history.", Severity.Error);
+        _isLoadingHistory = false;
+    }
+
+    private void OnInvoiceSearchChanged(string value) => _invoiceSearch = value;
+
+    private async Task SearchInvoiceAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_invoiceSearch))
+            return;
+
+        _isSearching = true;
+        _searched = true;
+        _selectedOrder = null;
+
+        var result = await ApiClient.GetSalesOrdersAsync(1, 10, search: _invoiceSearch, status: "Completed");
+        if (result.Success && result.Data is not null)
+        {
+            _searchResults = result.Data.Data.ToList();
+            if (_searchResults.Count == 1)
+                await SelectOrderAsync(_searchResults[0].Id);
+        }
+        else
+        {
+            _searchResults = [];
+            Snackbar.Add(result.Error?.Message ?? "Search failed.", Severity.Error);
+        }
+
+        _isSearching = false;
+    }
+
+    private async Task SelectOrderAsync(long salesOrderId)
+    {
+        var result = await ApiClient.GetSalesOrderByIdAsync(salesOrderId);
+        if (result.Success && result.Data is not null)
+        {
+            _selectedOrder = result.Data;
+            _returnQuantities.Clear();
+            _reason = null;
+        }
+        else
+        {
+            Snackbar.Add(result.Error?.Message ?? "Failed to load the invoice.", Severity.Error);
+        }
+    }
+
+    private void ClearSelection()
+    {
+        _selectedOrder = null;
+        _searchResults = [];
+        _searched = false;
+        _invoiceSearch = string.Empty;
+        _returnQuantities.Clear();
+    }
+
+    private decimal GetRemaining(SalesOrderLineDto line) => Math.Max(0, line.Quantity - line.QuantityReturned);
+
+    private decimal GetReturnQty(long lineId) => _returnQuantities.TryGetValue(lineId, out var qty) ? qty : 0;
+
+    private void SetReturnQty(SalesOrderLineDto line, decimal value)
+    {
+        var remaining = GetRemaining(line);
+        _returnQuantities[line.Id] = Math.Clamp(value, 0, remaining);
+    }
+
+    private int GetSelectedLineCount() => _returnQuantities.Count(kv => kv.Value > 0);
+
+    /// <summary>Client-side preview only — the server independently recomputes the refund from the original line snapshots at processing time (see CreateSalesReturnCommandHandler).</summary>
+    private decimal GetEstimatedRefund()
+    {
+        if (_selectedOrder is null)
+            return 0;
+
+        decimal total = 0;
+        foreach (var line in _selectedOrder.Lines)
+        {
+            var qty = GetReturnQty(line.Id);
+            if (qty <= 0 || line.Quantity == 0)
+                continue;
+
+            var allocatedDiscount = line.DiscountAmount * (qty / line.Quantity);
+            var taxAmount = line.TaxTypeSnapshot == "Inclusive"
+                ? (line.UnitPrice * qty) - (line.UnitPrice * qty / (1 + line.TaxRateSnapshot / 100m))
+                : line.UnitPrice * qty * line.TaxRateSnapshot / 100m;
+
+            total += line.TaxTypeSnapshot == "Inclusive"
+                ? (line.UnitPrice * qty) - allocatedDiscount
+                : (line.UnitPrice * qty) + taxAmount - allocatedDiscount;
+        }
+
+        return total;
+    }
+
+    private async Task ProcessReturnAsync()
+    {
+        if (_selectedOrder is null)
+            return;
+
+        var lines = _returnQuantities
+            .Where(kv => kv.Value > 0)
+            .Select(kv => new CreateSalesReturnLineRequest { SalesOrderLineId = kv.Key, Quantity = kv.Value })
+            .ToList();
+
+        if (lines.Count == 0)
+        {
+            Snackbar.Add("Enter a return quantity for at least one item.", Severity.Warning);
+            return;
+        }
+
+        _isSaving = true;
+
+        var result = await ApiClient.CreateSalesReturnAsync(new CreateSalesReturnRequest
+        {
+            SalesOrderId = _selectedOrder.Id,
+            Reason = _reason,
+            Lines = lines,
+        });
+
+        if (result.Success && result.Data is not null)
+        {
+            Snackbar.Add($"Return processed — {result.Data.ReturnNumber}.", Severity.Success);
+            _lastReturn = result.Data;
+            ClearSelection();
+            await LoadHistoryAsync();
+        }
+        else
+        {
+            Snackbar.Add(result.Error?.Message ?? "Failed to process the return.", Severity.Error);
+        }
+
+        _isSaving = false;
+    }
+}

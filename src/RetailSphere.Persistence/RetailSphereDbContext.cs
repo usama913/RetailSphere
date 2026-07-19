@@ -49,6 +49,12 @@ public sealed class RetailSphereDbContext(DbContextOptions<RetailSphereDbContext
 
     public DbSet<SalesOrder> SalesOrders => Set<SalesOrder>();
 
+    public DbSet<SalesReturn> SalesReturns => Set<SalesReturn>();
+
+    public DbSet<RetailSphere.Domain.Finance.Expense> Expenses => Set<RetailSphere.Domain.Finance.Expense>();
+
+    public DbSet<RetailSphere.Domain.Finance.CashRegisterSession> CashRegisterSessions => Set<RetailSphere.Domain.Finance.CashRegisterSession>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.ApplyConfigurationsFromAssembly(Assembly.GetExecutingAssembly());

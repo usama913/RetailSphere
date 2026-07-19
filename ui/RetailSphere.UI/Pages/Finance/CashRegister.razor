@@ -1,0 +1,266 @@
+@page "/finance/cash-register"
+@using RetailSphere.Contracts.Admin
+@using RetailSphere.Contracts.Finance
+@attribute [Authorize]
+@inject IApiClient ApiClient
+@inject AuthenticationStateProvider AuthStateProvider
+@inject ISnackbar Snackbar
+
+<PageTitle>Cash Register - RetailSphere</PageTitle>
+
+@if (!_canView)
+{
+    <MudAlert Severity="Severity.Warning">You don't have permission to view the cash register.</MudAlert>
+}
+else
+{
+
+<MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween" Class="mb-4">
+    <div>
+        <MudText Typo="Typo.h5">Cash Register</MudText>
+        <MudText Typo="Typo.body2" Style="color: var(--mud-palette-text-secondary);">Open and close the cash drawer, and review past sessions.</MudText>
+    </div>
+    <div style="min-width:220px">
+        <MudSelect T="long?" Value="_branchId" ValueChanged="OnBranchChangedAsync" Label="Branch" Variant="Variant.Outlined" Margin="Margin.Dense">
+            @foreach (var branch in _branches)
+            {
+                <MudSelectItem T="long?" Value="@((long?)branch.Id)">@branch.Name</MudSelectItem>
+            }
+        </MudSelect>
+    </div>
+</MudStack>
+
+<MudPaper Class="pa-4 mb-4" Elevation="1">
+    @if (_isLoadingCurrent)
+    {
+        <MudText Typo="Typo.body2">Loading…</MudText>
+    }
+    else if (_currentSession is null)
+    {
+        <MudText Typo="Typo.h6" Class="mb-2">No open session for this branch</MudText>
+        @if (_canOperate)
+        {
+            <MudGrid>
+                <MudItem xs="12" sm="4">
+                    <MudNumericField @bind-Value="_openingBalance" Label="Opening balance" Variant="Variant.Outlined" Min="0" />
+                </MudItem>
+                <MudItem xs="12" sm="8">
+                    <MudTextField @bind-Value="_openingNotes" Label="Notes (optional)" Variant="Variant.Outlined" />
+                </MudItem>
+            </MudGrid>
+            <MudButton Variant="Variant.Filled" Color="Color.Success" Class="mt-3" OnClick="OpenAsync" Disabled="@(_isSaving || _branchId is null)">
+                Open Register
+            </MudButton>
+        }
+        else
+        {
+            <MudText Typo="Typo.body2" Style="color: var(--mud-palette-text-secondary);">You don't have permission to open the register.</MudText>
+        }
+    }
+    else
+    {
+        <MudStack Row="true" Spacing="8" Wrap="Wrap.Wrap" Class="mb-4">
+            <div>
+                <MudText Typo="Typo.caption" Style="color: var(--mud-palette-text-secondary);">Opening Balance</MudText>
+                <MudText Typo="Typo.h5">@_currentSession.OpeningBalance.ToString("0.00")</MudText>
+            </div>
+            <div>
+                <MudText Typo="Typo.caption" Style="color: var(--mud-palette-text-secondary);">Cash Sales</MudText>
+                <MudText Typo="Typo.h5">@(_currentSession.TotalCashSales?.ToString("0.00") ?? "—")</MudText>
+            </div>
+            <div>
+                <MudText Typo="Typo.caption" Style="color: var(--mud-palette-text-secondary);">Cash Expenses</MudText>
+                <MudText Typo="Typo.h5">@(_currentSession.TotalCashExpenses?.ToString("0.00") ?? "—")</MudText>
+            </div>
+            <div>
+                <MudText Typo="Typo.caption" Style="color: var(--mud-palette-text-secondary);">Current Cash Balance</MudText>
+                <MudText Typo="Typo.h5"><strong>@(_currentSession.CurrentCashBalance?.ToString("0.00") ?? "—")</strong></MudText>
+            </div>
+        </MudStack>
+        <MudText Typo="Typo.body2" Class="mb-3" Style="color: var(--mud-palette-text-secondary);">
+            Opened @_currentSession.OpenedAtUtc.ToLocalTime().ToString("g") by @(_currentSession.OpenedByUserName ?? "—")
+        </MudText>
+
+        @if (_canOperate)
+        {
+            <MudDivider Class="mb-3" />
+            <MudText Typo="Typo.subtitle1" Class="mb-2">Close Register</MudText>
+            <MudGrid>
+                <MudItem xs="12" sm="4">
+                    <MudNumericField @bind-Value="_closingBalance" Label="Counted closing balance" Variant="Variant.Outlined" Min="0" />
+                </MudItem>
+                <MudItem xs="12" sm="8">
+                    <MudTextField @bind-Value="_closingNotes" Label="Notes (optional)" Variant="Variant.Outlined" />
+                </MudItem>
+            </MudGrid>
+            @if (_currentSession.CurrentCashBalance.HasValue)
+            {
+                <MudText Typo="Typo.body2" Class="mt-2">
+                    Variance vs. expected: <strong>@((_closingBalance - _currentSession.CurrentCashBalance.Value).ToString("0.00"))</strong>
+                </MudText>
+            }
+            <MudButton Variant="Variant.Filled" Color="Color.Error" Class="mt-3" OnClick="CloseAsync" Disabled="@_isSaving">
+                Close Register
+            </MudButton>
+        }
+    }
+</MudPaper>
+
+<MudText Typo="Typo.h6" Class="mb-2">Session History</MudText>
+<MudTable Items="@_history" Hover="true" Dense="true" Loading="@_isLoadingHistory">
+    <HeaderContent>
+        <MudTh>Branch</MudTh>
+        <MudTh>Status</MudTh>
+        <MudTh>Opened By</MudTh>
+        <MudTh>Opening Balance</MudTh>
+        <MudTh>Closing Balance</MudTh>
+        <MudTh>Opened At</MudTh>
+        <MudTh>Closed At</MudTh>
+    </HeaderContent>
+    <RowTemplate>
+        <MudTd DataLabel="Branch">@(context.BranchName ?? "—")</MudTd>
+        <MudTd DataLabel="Status">
+            <MudChip T="string" Size="Size.Small" Color="@(context.Status == "Open" ? Color.Success : Color.Default)">@context.Status</MudChip>
+        </MudTd>
+        <MudTd DataLabel="Opened By">@(context.OpenedByUserName ?? "—")</MudTd>
+        <MudTd DataLabel="Opening Balance">@context.OpeningBalance.ToString("0.00")</MudTd>
+        <MudTd DataLabel="Closing Balance">@(context.ClosingBalance?.ToString("0.00") ?? "—")</MudTd>
+        <MudTd DataLabel="Opened At">@context.OpenedAtUtc.ToLocalTime().ToString("g")</MudTd>
+        <MudTd DataLabel="Closed At">@(context.ClosedAtUtc?.ToLocalTime().ToString("g") ?? "—")</MudTd>
+    </RowTemplate>
+</MudTable>
+
+}
+
+@code {
+    private IReadOnlyList<BranchDto> _branches = [];
+    private IReadOnlyList<CashRegisterSessionDto> _history = [];
+    private CashRegisterSessionDto? _currentSession;
+    private HashSet<string> _permissions = [];
+
+    private long? _branchId;
+    private bool _isLoadingCurrent;
+    private bool _isLoadingHistory;
+    private bool _isSaving;
+
+    private decimal _openingBalance;
+    private string? _openingNotes;
+    private decimal _closingBalance;
+    private string? _closingNotes;
+
+    private bool _canView => _permissions.Contains("finance.cashregister.view");
+    private bool _canOperate => _permissions.Contains("finance.cashregister.operate");
+
+    protected override async Task OnInitializedAsync()
+    {
+        var state = await AuthStateProvider.GetAuthenticationStateAsync();
+        _permissions = state.User.FindAll("permission").Select(c => c.Value).ToHashSet();
+
+        if (!_canView)
+            return;
+
+        var branchesResult = await ApiClient.GetBranchesAsync(includeInactive: false);
+        if (branchesResult.Success && branchesResult.Data is not null)
+            _branches = branchesResult.Data;
+
+        var branchClaim = state.User.FindFirst("branch_id")?.Value;
+        _branchId = long.TryParse(branchClaim, out var claimedBranchId) && _branches.Any(b => b.Id == claimedBranchId)
+            ? claimedBranchId
+            : _branches.FirstOrDefault()?.Id;
+
+        await LoadCurrentAsync();
+        await LoadHistoryAsync();
+    }
+
+    private async Task OnBranchChangedAsync(long? branchId)
+    {
+        _branchId = branchId;
+        await LoadCurrentAsync();
+        await LoadHistoryAsync();
+    }
+
+    private async Task LoadCurrentAsync()
+    {
+        _currentSession = null;
+        if (_branchId is null)
+            return;
+
+        _isLoadingCurrent = true;
+        var result = await ApiClient.GetCurrentCashRegisterSessionAsync(_branchId.Value);
+        if (result.Success)
+        {
+            _currentSession = result.Data;
+            _openingBalance = 0;
+            _openingNotes = null;
+            _closingBalance = _currentSession?.CurrentCashBalance ?? 0;
+            _closingNotes = null;
+        }
+        else
+        {
+            Snackbar.Add(result.Error?.Message ?? "Failed to load the current cash register session.", Severity.Error);
+        }
+        _isLoadingCurrent = false;
+    }
+
+    private async Task LoadHistoryAsync()
+    {
+        _isLoadingHistory = true;
+        var result = await ApiClient.GetCashRegisterSessionsAsync(1, 50, _branchId);
+        if (result.Success && result.Data is not null)
+            _history = result.Data.Data;
+        else
+            Snackbar.Add(result.Error?.Message ?? "Failed to load session history.", Severity.Error);
+        _isLoadingHistory = false;
+    }
+
+    private async Task OpenAsync()
+    {
+        if (_branchId is null)
+            return;
+
+        _isSaving = true;
+        var result = await ApiClient.OpenCashRegisterSessionAsync(new OpenCashRegisterSessionRequest
+        {
+            BranchId = _branchId.Value,
+            OpeningBalance = _openingBalance,
+            OpeningNotes = _openingNotes,
+        });
+
+        if (result.Success)
+        {
+            Snackbar.Add("Cash register opened.", Severity.Success);
+            await LoadCurrentAsync();
+            await LoadHistoryAsync();
+        }
+        else
+        {
+            Snackbar.Add(result.Error?.Message ?? "Failed to open the cash register.", Severity.Error);
+        }
+        _isSaving = false;
+    }
+
+    private async Task CloseAsync()
+    {
+        if (_currentSession is null)
+            return;
+
+        _isSaving = true;
+        var result = await ApiClient.CloseCashRegisterSessionAsync(_currentSession.Id, new CloseCashRegisterSessionRequest
+        {
+            ClosingBalance = _closingBalance,
+            ClosingNotes = _closingNotes,
+        });
+
+        if (result.Success)
+        {
+            Snackbar.Add("Cash register closed.", Severity.Success);
+            await LoadCurrentAsync();
+            await LoadHistoryAsync();
+        }
+        else
+        {
+            Snackbar.Add(result.Error?.Message ?? "Failed to close the cash register.", Severity.Error);
+        }
+        _isSaving = false;
+    }
+}

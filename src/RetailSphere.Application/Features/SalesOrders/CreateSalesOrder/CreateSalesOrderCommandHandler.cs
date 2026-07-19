@@ -29,6 +29,7 @@ public sealed class CreateSalesOrderCommandHandler(
     IBranchRepository branchRepository,
     ICustomerRepository customerRepository,
     IProductRepository productRepository,
+    IProductAttributeRepository productAttributeRepository,
     IStockItemRepository stockItemRepository,
     ICurrentUserService currentUserService,
     IUnitOfWork unitOfWork,
@@ -52,6 +53,15 @@ public sealed class CreateSalesOrderCommandHandler(
         }
 
         var products = await productRepository.GetByVariantIdsAsync(request.Lines.Select(l => l.ProductVariantId).Distinct(), cancellationToken);
+
+        // Resolved once per checkout (not per line) so a cart with several sizes/colors
+        // of the same product only costs one extra query — used to spell out each
+        // sold variant's attribute values (e.g. "Size: 42, Color: Red") on the
+        // DescriptionSnapshot below, which is what shows on the printed receipt, the
+        // Sales Order history, and — most importantly — the Returns screen's line
+        // picker, so staff can tell exactly which variant a customer is returning
+        // instead of just an opaque SKU code.
+        var attributes = await productAttributeRepository.GetAllAsync(cancellationToken);
 
         // Resolve every line's variant up front (and pre-check stock) before touching
         // anything, so a bad line fails the whole checkout instead of a partial sale.
@@ -89,10 +99,10 @@ public sealed class CreateSalesOrderCommandHandler(
 
             foreach (var (product, variant, quantity, discountAmount) in resolvedLines)
             {
-                var descriptionSnapshot = $"{product.Name} ({variant.Sku})";
+                var descriptionSnapshot = BuildDescriptionSnapshot(product, variant, attributes);
                 var addResult = salesOrder.AddLine(
                     product.Id, variant.Id, variant.Sku, descriptionSnapshot,
-                    quantity, variant.Price, variant.TaxRate, variant.TaxType, discountAmount);
+                    quantity, variant.Price, variant.TaxRate, variant.TaxType, discountAmount, variant.CostPrice ?? 0);
                 if (addResult.IsFailure)
                     return Result.Failure<SalesOrderDto>(addResult.Error);
             }
@@ -135,6 +145,33 @@ public sealed class CreateSalesOrderCommandHandler(
 
         var dto = await salesOrderDtoAssembler.ToDtoAsync(salesOrder, cancellationToken);
         return Result.Success(dto);
+    }
+
+    /// <summary>
+    /// "{Product name} ({Sku}) — {Attribute: Value, ...}" — e.g. "Rolex Green Clean
+    /// Dial (P6-V04) — Size: 42". Only appended when the variant actually has
+    /// attribute values selected; a plain variant keeps the original "Name (Sku)" form.
+    /// </summary>
+    private static string BuildDescriptionSnapshot(Product product, ProductVariant variant, IReadOnlyList<ProductAttribute> attributes)
+    {
+        var baseDescription = $"{product.Name} ({variant.Sku})";
+
+        if (variant.AttributeValueIds.Count == 0)
+            return baseDescription;
+
+        var parts = new List<string>();
+        foreach (var attribute in attributes)
+        {
+            var matchedValues = attribute.Values
+                .Where(v => variant.AttributeValueIds.Contains(v.Id))
+                .Select(v => v.Value)
+                .ToList();
+
+            if (matchedValues.Count > 0)
+                parts.Add($"{attribute.Name}: {string.Join(", ", matchedValues)}");
+        }
+
+        return parts.Count > 0 ? $"{baseDescription} — {string.Join(", ", parts)}" : baseDescription;
     }
 
     /// <summary>Same duplicate-detection approach as CreatePurchaseOrderCommandHandler.IsDuplicatePoNumberViolation — see its remarks.</summary>

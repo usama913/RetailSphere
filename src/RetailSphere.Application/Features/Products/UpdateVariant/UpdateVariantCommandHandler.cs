@@ -67,7 +67,8 @@ public sealed class UpdateVariantCommandHandler(
             request.Width,
             request.Height,
             request.ReorderPoint,
-            request.AttributeValueIds);
+            request.AttributeValueIds,
+            request.ExpiryDate);
         if (updateResult.IsFailure)
             return Result.Failure<ProductDto>(updateResult.Error);
 

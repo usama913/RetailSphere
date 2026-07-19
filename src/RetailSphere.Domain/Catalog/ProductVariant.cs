@@ -73,6 +73,9 @@ public sealed class ProductVariant : Entity<long>
     /// </summary>
     public decimal? ReorderPoint { get; private set; }
 
+    /// <summary>Optional expiry/best-before date for this variant (e.g. perishable/dated stock) — feeds the "Products Near Expiry" dashboard widget. Null means the variant doesn't expire / isn't tracked for expiry.</summary>
+    public DateTime? ExpiryDate { get; private set; }
+
     /// <summary>The AttributeValues (e.g. Size=42, Color=Red) that identify this specific variant.</summary>
     public IReadOnlyCollection<long> AttributeValueIds => _attributeValueIds.AsReadOnly();
 
@@ -95,7 +98,8 @@ public sealed class ProductVariant : Entity<long>
         decimal? width,
         decimal? height,
         decimal? reorderPoint,
-        IEnumerable<long> attributeValueIds)
+        IEnumerable<long> attributeValueIds,
+        DateTime? expiryDate = null)
     {
         var variant = new ProductVariant
         {
@@ -113,6 +117,7 @@ public sealed class ProductVariant : Entity<long>
             Width = width,
             Height = height,
             ReorderPoint = reorderPoint,
+            ExpiryDate = expiryDate,
             IsActive = true,
         };
 
@@ -146,6 +151,11 @@ public sealed class ProductVariant : Entity<long>
     internal void UpdateReorderPoint(decimal? reorderPoint)
     {
         ReorderPoint = reorderPoint;
+    }
+
+    internal void UpdateExpiryDate(DateTime? expiryDate)
+    {
+        ExpiryDate = expiryDate;
     }
 
     private static string NormalizeBarcodeType(string? barcodeType) =>

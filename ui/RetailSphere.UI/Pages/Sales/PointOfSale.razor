@@ -2,11 +2,14 @@
 @using RetailSphere.Contracts.Admin
 @using RetailSphere.Contracts.Catalog
 @using RetailSphere.Contracts.Customers
+@using RetailSphere.Contracts.Finance
 @using RetailSphere.Contracts.Sales
 @attribute [Authorize]
 @inject IApiClient ApiClient
 @inject AuthenticationStateProvider AuthStateProvider
 @inject ISnackbar Snackbar
+@inject NavigationManager NavigationManager
+@inject IJSRuntime JsRuntime
 
 <PageTitle>Point of Sale - RetailSphere</PageTitle>
 
@@ -17,36 +20,166 @@
 else
 {
 
-<MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween" Class="mb-4">
+<MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween" Class="mb-4" Wrap="Wrap.Wrap">
     <div>
         <MudText Typo="Typo.h5">Point of Sale</MudText>
         <MudText Typo="Typo.body2" Style="color: var(--mud-palette-text-secondary);">Ring up a sale and check out.</MudText>
     </div>
-    <div style="min-width:220px">
-        <MudSelect T="long?" Value="_branchId" ValueChanged="OnBranchChangedAsync" Label="Branch" Variant="Variant.Outlined" Margin="Margin.Dense">
-            @foreach (var branch in _branches)
-            {
-                <MudSelectItem T="long?" Value="@((long?)branch.Id)">@branch.Name</MudSelectItem>
-            }
-        </MudSelect>
-    </div>
+    <MudStack Row="true" Spacing="2" AlignItems="AlignItems.Center" Wrap="Wrap.Wrap">
+        @if (_canRecordExpense)
+        {
+            <MudButton Variant="Variant.Outlined" Color="Color.Warning" StartIcon="@Icons.Material.Filled.ReceiptLong"
+                       OnClick="@(() => _showQuickAddExpense = !_showQuickAddExpense)">
+                Add Expense
+            </MudButton>
+        }
+        <div style="min-width:220px">
+            <MudSelect T="long?" Value="_branchId" ValueChanged="OnBranchChangedAsync" Label="Branch" Variant="Variant.Outlined" Margin="Margin.Dense">
+                @foreach (var branch in _branches)
+                {
+                    <MudSelectItem T="long?" Value="@((long?)branch.Id)">@branch.Name</MudSelectItem>
+                }
+            </MudSelect>
+        </div>
+    </MudStack>
 </MudStack>
+
+@if (_showQuickAddExpense)
+{
+    <MudPaper Class="pa-4 mb-4" Elevation="1">
+        <MudText Typo="Typo.h6" Class="mb-3">Add Expense</MudText>
+        <MudGrid>
+            <MudItem xs="12" sm="6" md="3">
+                <MudNumericField @bind-Value="_expAmount" Label="Amount" Variant="Variant.Outlined" Margin="Margin.Dense" Min="0" />
+            </MudItem>
+            <MudItem xs="12" sm="6" md="3">
+                <MudStack Row="true" Spacing="1" AlignItems="AlignItems.Center">
+                    <MudSelect T="string" @bind-Value="_expCategory" Label="Category" Variant="Variant.Outlined" Margin="Margin.Dense" Style="flex:1">
+                        @foreach (var category in _categoryOptions)
+                        {
+                            <MudSelectItem T="string" Value="@category">@category</MudSelectItem>
+                        }
+                    </MudSelect>
+                    <MudTooltip Text="Add a new category">
+                        <MudIconButton Icon="@Icons.Material.Filled.Add" Size="Size.Small" OnClick="@(() => _showAddExpenseCategory = !_showAddExpenseCategory)" />
+                    </MudTooltip>
+                </MudStack>
+                @if (_showAddExpenseCategory)
+                {
+                    <MudStack Row="true" Spacing="1" Class="mt-2" AlignItems="AlignItems.Center">
+                        <MudTextField @bind-Value="_newExpenseCategoryName" Label="New category name" Variant="Variant.Outlined" Margin="Margin.Dense" Style="flex:1" />
+                        <MudButton Variant="Variant.Outlined" Size="Size.Small" OnClick="AddNewExpenseCategory">Add</MudButton>
+                    </MudStack>
+                }
+            </MudItem>
+            <MudItem xs="12" sm="6" md="3" Class="d-flex align-center">
+                <MudCheckBox @bind-Value="_expPaidFromCash" Label="Paid from cash drawer" />
+            </MudItem>
+            <MudItem xs="12" sm="6" md="3">
+                <MudTextField @bind-Value="_expDescription" Label="Description (optional)" Variant="Variant.Outlined" Margin="Margin.Dense" />
+            </MudItem>
+        </MudGrid>
+        <MudStack Row="true" Class="mt-3" Spacing="2">
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="SaveExpenseAsync" Disabled="@(_isSavingExpense || _branchId is null)">
+                Save Expense
+            </MudButton>
+            <MudButton Variant="Variant.Text" OnClick="@(() => _showQuickAddExpense = false)">Cancel</MudButton>
+        </MudStack>
+        @if (_branchId is null)
+        {
+            <MudText Typo="Typo.caption" Class="mt-2" Style="color: var(--mud-palette-error);">Select a branch first.</MudText>
+        }
+    </MudPaper>
+}
+
+@if (_branchId is not null)
+{
+    @if (_currentSession is null)
+    {
+        <MudAlert Severity="Severity.Warning" Class="mb-4">
+            No cash register session is open for this branch.
+            @if (_canOperateRegister)
+            {
+                <MudButton Variant="Variant.Text" Size="Size.Small" Class="ml-2" OnClick="@(() => NavigationManager.NavigateTo("finance/cash-register"))">Open one</MudButton>
+            }
+        </MudAlert>
+    }
+    else
+    {
+        <MudPaper Class="pa-3 mb-4" Elevation="1" Style="border-left: 4px solid var(--mud-palette-success);">
+            <MudStack Row="true" Spacing="6" Wrap="Wrap.Wrap">
+                <div>
+                    <MudText Typo="Typo.caption" Style="color: var(--mud-palette-text-secondary);">Opening Balance</MudText>
+                    <MudText Typo="Typo.h6">@_currentSession.OpeningBalance.ToString("0.00")</MudText>
+                </div>
+                <div>
+                    <MudText Typo="Typo.caption" Style="color: var(--mud-palette-text-secondary);">Current Cash Balance</MudText>
+                    <MudText Typo="Typo.h6">@(_currentSession.CurrentCashBalance?.ToString("0.00") ?? "—")</MudText>
+                </div>
+                <div>
+                    <MudText Typo="Typo.caption" Style="color: var(--mud-palette-text-secondary);">Opened</MudText>
+                    <MudText Typo="Typo.body2">@_currentSession.OpenedAtUtc.ToLocalTime().ToString("g") by @(_currentSession.OpenedByUserName ?? "—")</MudText>
+                </div>
+            </MudStack>
+        </MudPaper>
+    }
+}
 
 @if (_lastCompletedOrder is not null)
 {
-    <MudAlert Severity="Severity.Success" Class="mb-4" ContentAlignment="HorizontalAlignment.Left">
-        <MudText Typo="Typo.subtitle1"><strong>Sale completed — @_lastCompletedOrder.OrderNumber</strong></MudText>
-        <MudText Typo="Typo.body2">Total: @_lastCompletedOrder.TotalAmount.ToString("0.00") · Paid: @_lastCompletedOrder.AmountPaid.ToString("0.00") · Change due: @_lastCompletedOrder.ChangeDue.ToString("0.00")</MudText>
-        <MudButton Variant="Variant.Text" Size="Size.Small" Class="mt-1" OnClick="@(() => _lastCompletedOrder = null)">Dismiss</MudButton>
-    </MudAlert>
+    <MudPaper Class="pa-4 mb-4" Elevation="2">
+        <MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center" Class="mb-2">
+            <MudText Typo="Typo.h6" Color="Color.Success">Sale completed — @_lastCompletedOrder.OrderNumber</MudText>
+            <MudStack Row="true" Spacing="1">
+                <MudButton Variant="Variant.Outlined" Size="Size.Small" StartIcon="@Icons.Material.Filled.Print" OnClick="PrintReceiptAsync">Print</MudButton>
+                <MudButton Variant="Variant.Outlined" Size="Size.Small" StartIcon="@Icons.Material.Filled.PictureAsPdf" OnClick="PrintReceiptAsync">Download PDF</MudButton>
+                <MudButton Variant="Variant.Outlined" Size="Size.Small" StartIcon="@Icons.Material.Filled.Share" OnClick="ShareReceiptAsync">Share</MudButton>
+                <MudButton Variant="Variant.Text" Size="Size.Small" OnClick="@(() => _lastCompletedOrder = null)">Dismiss</MudButton>
+            </MudStack>
+        </MudStack>
+
+        <div id="pos-receipt" style="max-width:380px; margin:0 auto; font-family:monospace;">
+            <MudStack AlignItems="AlignItems.Center" Spacing="0" Class="mb-2">
+                <MudText Typo="Typo.subtitle1"><strong>@(_lastCompletedOrder.BranchName ?? "RetailSphere")</strong></MudText>
+                <MudText Typo="Typo.caption">Receipt — @_lastCompletedOrder.OrderNumber</MudText>
+                <MudText Typo="Typo.caption">@_lastCompletedOrder.OrderDate.ToLocalTime().ToString("g")</MudText>
+            </MudStack>
+            <MudDivider Class="my-2" />
+            <MudText Typo="Typo.caption">Cashier: @(_lastCompletedOrder.CashierName ?? "—")</MudText>
+            <MudText Typo="Typo.caption">Customer: @(_lastCompletedOrder.CustomerName ?? "Walk-in")</MudText>
+            <MudDivider Class="my-2" />
+            @foreach (var line in _lastCompletedOrder.Lines)
+            {
+                <MudStack Row="true" Justify="Justify.SpaceBetween">
+                    <MudText Typo="Typo.body2">@line.DescriptionSnapshot x @line.Quantity.ToString("0.###")</MudText>
+                    <MudText Typo="Typo.body2">@line.LineTotal.ToString("0.00")</MudText>
+                </MudStack>
+            }
+            <MudDivider Class="my-2" />
+            <MudStack Spacing="0">
+                <MudStack Row="true" Justify="Justify.SpaceBetween"><MudText Typo="Typo.body2">Subtotal</MudText><MudText Typo="Typo.body2">@_lastCompletedOrder.SubtotalAmount.ToString("0.00")</MudText></MudStack>
+                <MudStack Row="true" Justify="Justify.SpaceBetween"><MudText Typo="Typo.body2">Tax</MudText><MudText Typo="Typo.body2">@_lastCompletedOrder.TaxAmount.ToString("0.00")</MudText></MudStack>
+                @if (_lastCompletedOrder.OrderDiscountAmount > 0)
+                {
+                    <MudStack Row="true" Justify="Justify.SpaceBetween"><MudText Typo="Typo.body2">Discount</MudText><MudText Typo="Typo.body2">-@_lastCompletedOrder.OrderDiscountAmount.ToString("0.00")</MudText></MudStack>
+                }
+                <MudStack Row="true" Justify="Justify.SpaceBetween"><MudText Typo="Typo.subtitle1"><strong>Total</strong></MudText><MudText Typo="Typo.subtitle1"><strong>@_lastCompletedOrder.TotalAmount.ToString("0.00")</strong></MudText></MudStack>
+                <MudStack Row="true" Justify="Justify.SpaceBetween"><MudText Typo="Typo.body2">Paid (@_lastCompletedOrder.PaymentMethod)</MudText><MudText Typo="Typo.body2">@_lastCompletedOrder.AmountPaid.ToString("0.00")</MudText></MudStack>
+                <MudStack Row="true" Justify="Justify.SpaceBetween"><MudText Typo="Typo.body2">Change due</MudText><MudText Typo="Typo.body2">@_lastCompletedOrder.ChangeDue.ToString("0.00")</MudText></MudStack>
+            </MudStack>
+            <MudDivider Class="my-2" />
+            <MudText Typo="Typo.caption" Style="display:block; text-align:center;">Thank you for your purchase!</MudText>
+        </div>
+    </MudPaper>
 }
 
 <MudGrid>
     <MudItem xs="12" md="8">
         <MudPaper Class="pa-4 mb-4" Elevation="1">
-            <MudTextField T="string" Value="@_searchTerm" ValueChanged="OnSearchChanged" Label="Search products by name, SKU, or barcode"
+            <MudTextField @ref="_searchField" T="string" Value="@_searchTerm" ValueChanged="OnSearchChanged" Label="Search products by name, SKU, or barcode"
                           Variant="Variant.Outlined" Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search"
-                          Immediate="true" DebounceInterval="150" Placeholder="Start typing to find an item…" />
+                          Immediate="true" DebounceInterval="150" Placeholder="Start typing to find an item… (Enter adds an exact match)"
+                          @onkeydown="OnSearchKeyDown" />
 
             @if (!string.IsNullOrWhiteSpace(_searchTerm))
             {
@@ -72,7 +205,7 @@ else
                             <MudTd DataLabel="Price">@context.Variant.Price.ToString("0.00")</MudTd>
                             <MudTd DataLabel="Available">@GetAvailableQty(context.Variant.Id).ToString("0.###")</MudTd>
                             <MudTd>
-                                <MudButton Variant="Variant.Filled" Color="Color.Primary" Size="Size.Small" OnClick="@(() => AddToCart(context.Product, context.Variant))">
+                                <MudButton Variant="Variant.Filled" Color="Color.Primary" Size="Size.Small" OnClick="@(() => AddToCart(context.Product, context.Variant))" Disabled="@GetAvailableQty(context.Variant.Id).Equals(0m)">
                                     Add
                                 </MudButton>
                             </MudTd>
@@ -160,7 +293,7 @@ else
                 }
             </MudSelect>
 
-            <MudNumericField @bind-Value="_orderDiscountAmount" Label="Order discount" Variant="Variant.Outlined" Margin="Margin.Dense" Min="0" Class="mt-2" />
+            <MudNumericField T="decimal" Value="_orderDiscountAmount" ValueChanged="OnOrderDiscountChanged" Label="Order discount" Variant="Variant.Outlined" Margin="Margin.Dense" Min="0" Class="mt-2" />
 
             <MudDivider Class="my-3" />
             <MudStack Spacing="1">
@@ -170,7 +303,8 @@ else
             </MudStack>
             <MudDivider Class="my-3" />
 
-            <MudNumericField @bind-Value="_amountPaid" Label="Amount paid" Variant="Variant.Outlined" Margin="Margin.Dense" Min="0" />
+            <MudNumericField T="decimal" Value="_amountPaid" ValueChanged="OnAmountPaidChanged" Label="Amount paid" Variant="Variant.Outlined" Margin="Margin.Dense" Min="0"
+                              HelperText="@(_amountPaidTouched ? null : "Pre-filled with the total — edit if the customer pays a different amount")" />
             <MudStack Row="true" Justify="Justify.SpaceBetween" Class="mt-2">
                 <MudText Typo="Typo.body2">Change due</MudText>
                 <MudText Typo="Typo.body2">@GetChangeDue().ToString("0.00")</MudText>
@@ -203,6 +337,7 @@ else
     }
 
     private static readonly IReadOnlyList<string> PaymentMethods = ["Cash", "Card"];
+    private static readonly IReadOnlyList<string> DefaultExpenseCategories = ["Rent", "Utilities", "Salaries", "Supplies", "Maintenance", "Marketing", "Other"];
 
     // Bulk-fetched once per branch change — same simplification as the Inventory
     // Overview/Branch Stock summary cards (client-side search over a capped fetch
@@ -215,6 +350,7 @@ else
     private IReadOnlyList<CustomerDto> _customers = [];
     private Dictionary<long, decimal> _stockByVariant = new();
     private HashSet<string> _permissions = [];
+    private MudTextField<string> _searchField = null!;
 
     private long? _branchId;
     private string _searchTerm = string.Empty;
@@ -230,11 +366,25 @@ else
     private string _paymentMethod = "Cash";
     private decimal _orderDiscountAmount;
     private decimal _amountPaid;
+    private bool _amountPaidTouched;
     private string? _notes;
     private bool _isCheckingOut;
     private SalesOrderDto? _lastCompletedOrder;
+    private CashRegisterSessionDto? _currentSession;
+
+    private bool _showQuickAddExpense;
+    private bool _isSavingExpense;
+    private List<string> _categoryOptions = DefaultExpenseCategories.ToList();
+    private bool _showAddExpenseCategory;
+    private string? _newExpenseCategoryName;
+    private decimal _expAmount;
+    private string _expCategory = "Other";
+    private string? _expDescription;
+    private bool _expPaidFromCash = true;
 
     private bool _canUse => _permissions.Contains("sales.pos.create");
+    private bool _canOperateRegister => _permissions.Contains("finance.cashregister.operate");
+    private bool _canRecordExpense => _permissions.Contains("finance.expenses.edit");
 
     protected override async Task OnInitializedAsync()
     {
@@ -258,12 +408,110 @@ else
 
         await LoadCustomersAsync();
 
+        if (_canRecordExpense)
+            await LoadExpenseCategoriesAsync();
+
         var branchClaim = state.User.FindFirst("branch_id")?.Value;
         _branchId = long.TryParse(branchClaim, out var claimedBranchId) && _branches.Any(b => b.Id == claimedBranchId)
             ? claimedBranchId
             : _branches.FirstOrDefault()?.Id;
 
         await LoadStockAsync();
+        await LoadCashRegisterSessionAsync();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender && _canUse)
+            await _searchField.FocusAsync();
+    }
+
+    /// <summary>
+    /// Builds a small, self-contained HTML snippet for the receipt (plain tags +
+    /// inline styles, no MudBlazor classes) and hands it to retailSphereReceipt.print,
+    /// which opens it in a brand-new browser window/tab and calls that window's own
+    /// print() — this is what makes the OS/browser print dialog actually appear as a
+    /// real popup (choosing "Save as PDF" there is how "Download PDF" is satisfied),
+    /// instead of trying to print the current in-page panel.
+    /// </summary>
+    private async Task PrintReceiptAsync()
+    {
+        if (_lastCompletedOrder is null)
+            return;
+
+        var html = BuildReceiptHtml(_lastCompletedOrder);
+        await JsRuntime.InvokeVoidAsync("retailSphereReceipt.print", html);
+    }
+
+    private static string BuildReceiptHtml(SalesOrderDto order)
+    {
+        string Encode(string? value) => System.Net.WebUtility.HtmlEncode(value ?? string.Empty);
+
+        string Row(string label, string value, bool bold = false)
+        {
+            var content = $"<span>{Encode(label)}</span><span>{Encode(value)}</span>";
+            if (bold)
+                content = $"<strong>{content}</strong>";
+            return $"<div class=\"rs-row\">{content}</div>";
+        }
+
+        var linesHtml = string.Join(string.Empty, order.Lines.Select(line =>
+            Row($"{line.DescriptionSnapshot} x{line.Quantity:0.###}", line.LineTotal.ToString("0.00"))));
+
+        var discountHtml = order.OrderDiscountAmount > 0
+            ? Row("Discount", $"-{order.OrderDiscountAmount:0.00}")
+            : string.Empty;
+
+        return
+            "<div class=\"rs-receipt\">" +
+            $"<div class=\"rs-center\"><strong>{Encode(order.BranchName ?? "RetailSphere")}</strong><br/>" +
+            $"Receipt — {Encode(order.OrderNumber)}<br/>" +
+            $"{order.OrderDate.ToLocalTime():g}</div>" +
+            "<hr/>" +
+            $"<div>Cashier: {Encode(order.CashierName ?? "—")}</div>" +
+            $"<div>Customer: {Encode(order.CustomerName ?? "Walk-in")}</div>" +
+            "<hr/>" +
+            linesHtml +
+            "<hr/>" +
+            Row("Subtotal", order.SubtotalAmount.ToString("0.00")) +
+            Row("Tax", order.TaxAmount.ToString("0.00")) +
+            discountHtml +
+            Row("Total", order.TotalAmount.ToString("0.00"), bold: true) +
+            Row($"Paid ({order.PaymentMethod})", order.AmountPaid.ToString("0.00")) +
+            Row("Change due", order.ChangeDue.ToString("0.00")) +
+            "<hr/>" +
+            "<div class=\"rs-center\">Thank you for your purchase!</div>" +
+            "</div>";
+    }
+
+    private async Task ShareReceiptAsync()
+    {
+        if (_lastCompletedOrder is null)
+            return;
+
+        var lines = string.Join("\n", _lastCompletedOrder.Lines.Select(l => $"{l.DescriptionSnapshot} x{l.Quantity:0.###}  {l.LineTotal:0.00}"));
+        var summary = $"Receipt {_lastCompletedOrder.OrderNumber}\n{_lastCompletedOrder.BranchName}\n\n{lines}\n\nTotal: {_lastCompletedOrder.TotalAmount:0.00}\nPaid: {_lastCompletedOrder.AmountPaid:0.00}\nChange due: {_lastCompletedOrder.ChangeDue:0.00}";
+
+        var outcome = await JsRuntime.InvokeAsync<string>("retailSphereReceipt.share", $"Receipt {_lastCompletedOrder.OrderNumber}", summary);
+
+        Snackbar.Add(outcome switch
+        {
+            "shared" => "Receipt shared.",
+            "copied" => "Sharing isn't available — receipt copied to clipboard instead.",
+            "cancelled" => "Share cancelled.",
+            _ => "Sharing isn't supported on this browser.",
+        }, outcome is "shared" or "copied" ? Severity.Success : Severity.Info);
+    }
+
+    private async Task LoadCashRegisterSessionAsync()
+    {
+        _currentSession = null;
+        if (_branchId is null)
+            return;
+
+        var result = await ApiClient.GetCurrentCashRegisterSessionAsync(_branchId.Value);
+        if (result.Success)
+            _currentSession = result.Data;
     }
 
     private async Task LoadCustomersAsync()
@@ -271,6 +519,34 @@ else
         var customersResult = await ApiClient.GetCustomersAsync(includeInactive: false);
         if (customersResult.Success && customersResult.Data is not null)
             _customers = customersResult.Data;
+    }
+
+    /// <summary>Suggested defaults merged with every distinct category already recorded — see GetExpenseCategoriesQueryHandler. Category itself stays freeform on the server, so a brand-new name typed via AddNewExpenseCategory becomes real the moment an expense is saved with it.</summary>
+    private async Task LoadExpenseCategoriesAsync()
+    {
+        var result = await ApiClient.GetExpenseCategoriesAsync();
+        if (result.Success && result.Data is not null && result.Data.Count > 0)
+            _categoryOptions = result.Data.ToList();
+    }
+
+    private void AddNewExpenseCategory()
+    {
+        var trimmed = _newExpenseCategoryName?.Trim();
+        if (string.IsNullOrWhiteSpace(trimmed))
+        {
+            Snackbar.Add("Enter a category name.", Severity.Warning);
+            return;
+        }
+
+        if (!_categoryOptions.Any(c => string.Equals(c, trimmed, StringComparison.OrdinalIgnoreCase)))
+        {
+            _categoryOptions.Add(trimmed);
+            _categoryOptions = _categoryOptions.OrderBy(c => c, StringComparer.OrdinalIgnoreCase).ToList();
+        }
+
+        _expCategory = trimmed;
+        _newExpenseCategoryName = null;
+        _showAddExpenseCategory = false;
     }
 
     private async Task LoadStockAsync()
@@ -288,6 +564,7 @@ else
     {
         _branchId = branchId;
         await LoadStockAsync();
+        await LoadCashRegisterSessionAsync();
     }
 
     private void OnSearchChanged(string value) => _searchTerm = value;
@@ -332,37 +609,98 @@ else
         return parts.Count > 0 ? string.Join(" · ", parts) : "—";
     }
 
-    private void AddToCart(ProductDto product, ProductVariantDto variant)
+    private async Task AddToCart(ProductDto product, ProductVariantDto variant)
     {
         var existing = _cart.FirstOrDefault(c => c.ProductVariantId == variant.Id);
         if (existing is not null)
         {
             existing.Quantity += 1;
-            return;
+            SyncAmountPaid();
+        }
+        else
+        {
+            var attributeLabel = GetAttributeLabel(variant);
+            var description = attributeLabel == "—" ? product.Name : $"{product.Name} — {attributeLabel}";
+
+            _cart.Add(new CartLine
+            {
+                ProductId = product.Id,
+                ProductVariantId = variant.Id,
+                Sku = variant.Sku,
+                Description = description,
+                UnitPrice = variant.Price,
+                TaxRate = variant.TaxRate,
+                TaxType = variant.TaxType,
+                Quantity = 1,
+                DiscountAmount = 0,
+            });
+            SyncAmountPaid();
         }
 
-        var attributeLabel = GetAttributeLabel(variant);
-        var description = attributeLabel == "—" ? product.Name : $"{product.Name} — {attributeLabel}";
-
-        _cart.Add(new CartLine
-        {
-            ProductId = product.Id,
-            ProductVariantId = variant.Id,
-            Sku = variant.Sku,
-            Description = description,
-            UnitPrice = variant.Price,
-            TaxRate = variant.TaxRate,
-            TaxType = variant.TaxType,
-            Quantity = 1,
-            DiscountAmount = 0,
-        });
+        // Clear and refocus the search box right after adding — the cashier can keep
+        // scanning/typing the next item without reaching for the mouse, matching a
+        // typical barcode-scanner-driven checkout flow.
+        _searchTerm = string.Empty;
+        await _searchField.FocusAsync();
     }
 
-    private void SetCartQuantity(CartLine line, decimal value) => line.Quantity = value < 0 ? 0 : value;
+    /// <summary>
+    /// Barcode scanners send Enter after the code — if the current search text
+    /// resolves to exactly one item, Enter adds it immediately instead of requiring
+    /// a click on "Add", so a scan-driven checkout never needs the mouse.
+    /// </summary>
+    private async Task OnSearchKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key != "Enter")
+            return;
 
-    private void SetCartDiscount(CartLine line, decimal value) => line.DiscountAmount = value < 0 ? 0 : value;
+        var results = GetSearchResults();
+        if (results.Count == 1)
+            await AddToCart(results[0].Product, results[0].Variant);
+    }
 
-    private void RemoveFromCart(CartLine line) => _cart.Remove(line);
+    private void SetCartQuantity(CartLine line, decimal value)
+    {
+        line.Quantity = value < 0 ? 0 : value;
+        SyncAmountPaid();
+    }
+
+    private void SetCartDiscount(CartLine line, decimal value)
+    {
+        line.DiscountAmount = value < 0 ? 0 : value;
+        SyncAmountPaid();
+    }
+
+    private void RemoveFromCart(CartLine line)
+    {
+        _cart.Remove(line);
+        SyncAmountPaid();
+    }
+
+    private void OnOrderDiscountChanged(decimal value)
+    {
+        _orderDiscountAmount = value < 0 ? 0 : value;
+        SyncAmountPaid();
+    }
+
+    private void OnAmountPaidChanged(decimal value)
+    {
+        _amountPaid = value < 0 ? 0 : value;
+        _amountPaidTouched = true;
+    }
+
+    /// <summary>
+    /// Keeps Amount Paid defaulted to the current total as the cart changes, until
+    /// the cashier types their own value into it (see OnAmountPaidChanged) — matches
+    /// "pre-filled with the total by default, editable if the customer pays
+    /// something else." Reset alongside the rest of the checkout state in
+    /// CheckoutAsync so the next sale starts fresh.
+    /// </summary>
+    private void SyncAmountPaid()
+    {
+        if (!_amountPaidTouched)
+            _amountPaid = GetTotal();
+    }
 
     /// <summary>Client-side preview only — the server independently recomputes tax/totals from the catalog at checkout (see CreateSalesOrderCommandHandler).</summary>
     private decimal GetLineTaxAmount(CartLine line) => line.TaxType == "Inclusive"
@@ -416,6 +754,55 @@ else
         _isSavingQuickCustomer = false;
     }
 
+    private async Task SaveExpenseAsync()
+    {
+        if (_branchId is null)
+        {
+            Snackbar.Add("Select a branch first.", Severity.Warning);
+            return;
+        }
+
+        if (_expAmount <= 0)
+        {
+            Snackbar.Add("Amount must be greater than zero.", Severity.Warning);
+            return;
+        }
+
+        _isSavingExpense = true;
+
+        var result = await ApiClient.CreateExpenseAsync(new CreateExpenseRequest
+        {
+            BranchId = _branchId.Value,
+            ExpenseDate = DateTime.Today,
+            Amount = _expAmount,
+            Category = _expCategory,
+            Description = _expDescription,
+            PaidFromCash = _expPaidFromCash,
+        });
+
+        if (result.Success)
+        {
+            Snackbar.Add("Expense recorded.", Severity.Success);
+            _showQuickAddExpense = false;
+            _expAmount = 0;
+            _expCategory = "Other";
+            _expDescription = null;
+            _expPaidFromCash = true;
+            _showAddExpenseCategory = false;
+            _newExpenseCategoryName = null;
+
+            // Recorded expenses paid from cash affect the cash register's expected
+            // balance — refresh the banner so "Current Cash Balance" stays accurate.
+            await LoadCashRegisterSessionAsync();
+        }
+        else
+        {
+            Snackbar.Add(result.Error?.Message ?? "Failed to record expense.", Severity.Error);
+        }
+
+        _isSavingExpense = false;
+    }
+
     private async Task CheckoutAsync()
     {
         if (_branchId is null)
@@ -465,8 +852,10 @@ else
             _customerId = null;
             _orderDiscountAmount = 0;
             _amountPaid = 0;
+            _amountPaidTouched = false;
             _notes = null;
             await LoadStockAsync();
+            await LoadCashRegisterSessionAsync();
         }
         else
         {
