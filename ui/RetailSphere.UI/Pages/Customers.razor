@@ -4,6 +4,7 @@
 @inject IApiClient ApiClient
 @inject AuthenticationStateProvider AuthStateProvider
 @inject ISnackbar Snackbar
+@inject IDialogService DialogService
 
 <PageTitle>Customers - RetailSphere</PageTitle>
 
@@ -14,18 +15,16 @@
 else
 {
 
-<MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween" Class="mb-4">
-    <div>
-        <MudText Typo="Typo.h5">Customers</MudText>
-        <MudText Typo="Typo.body2" Style="color: var(--mud-palette-text-secondary);">People and businesses who buy from you.</MudText>
-    </div>
-    @if (_canEdit)
-    {
-        <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" OnClick="ShowCreateForm">
-            New Customer
-        </MudButton>
-    }
-</MudStack>
+<PageHeader Title="Customers" Subtitle="People and businesses who buy from you." Breadcrumbs="_breadcrumbs">
+    <Actions>
+        @if (_canEdit)
+        {
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" OnClick="ShowCreateForm">
+                New Customer
+            </MudButton>
+        }
+    </Actions>
+</PageHeader>
 
 <MudGrid Class="mb-4">
     <MudItem xs="12" sm="6" md="4">
@@ -35,37 +34,13 @@ else
     </MudItem>
 </MudGrid>
 
-@if (_showForm)
-{
-    <MudPaper Class="pa-4 mb-4" Elevation="1">
-        <MudText Typo="Typo.h6" Class="mb-3">@(_editingId is null ? "New Customer" : "Edit Customer")</MudText>
-        <MudGrid>
-            <MudItem xs="12" sm="6">
-                <MudTextField @bind-Value="_formName" Label="Name" Variant="Variant.Outlined" Required="true" />
-            </MudItem>
-            <MudItem xs="12" sm="6">
-                <MudTextField @bind-Value="_formPhone" Label="Phone" Variant="Variant.Outlined" />
-            </MudItem>
-            <MudItem xs="12" sm="6">
-                <MudTextField @bind-Value="_formEmail" Label="Email" Variant="Variant.Outlined" />
-            </MudItem>
-            <MudItem xs="12" sm="6">
-                <MudTextField @bind-Value="_formAddress" Label="Address" Variant="Variant.Outlined" />
-            </MudItem>
-        </MudGrid>
-        <MudStack Row="true" Class="mt-4" Spacing="2">
-            <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="SaveAsync" Disabled="@_isSaving">Save</MudButton>
-            <MudButton Variant="Variant.Text" OnClick="CancelForm">Cancel</MudButton>
-        </MudStack>
-    </MudPaper>
-}
-
 <MudTable Items="@FilteredCustomers" Hover="true" Dense="true" Loading="@_isLoading">
     <HeaderContent>
         <MudTh>Name</MudTh>
         <MudTh>Phone</MudTh>
         <MudTh>Email</MudTh>
         <MudTh>Address</MudTh>
+        <MudTh>Credit limit</MudTh>
         <MudTh>Status</MudTh>
         <MudTh>Actions</MudTh>
     </HeaderContent>
@@ -74,6 +49,7 @@ else
         <MudTd DataLabel="Phone">@(context.Phone ?? "—")</MudTd>
         <MudTd DataLabel="Email">@(context.Email ?? "—")</MudTd>
         <MudTd DataLabel="Address">@(context.Address ?? "—")</MudTd>
+        <MudTd DataLabel="Credit limit">@(context.CreditLimit.HasValue ? context.CreditLimit.Value.ToString("0.00") : "Unlimited")</MudTd>
         <MudTd DataLabel="Status">
             <MudChip T="string" Size="Size.Small" Color="@(context.IsActive ? Color.Success : Color.Default)">
                 @(context.IsActive ? "Active" : "Inactive")
@@ -91,15 +67,57 @@ else
                 {
                     <MudIconButton Icon="@Icons.Material.Filled.PlayCircle" Size="Size.Small" OnClick="@(() => ActivateAsync(context.Id))" />
                 }
-                <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" OnClick="@(() => DeleteAsync(context.Id))" />
+                <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" OnClick="@(() => ConfirmDeleteAsync(context))" />
             }
         </MudTd>
     </RowTemplate>
+    <NoRecordsContent>
+        <EmptyState Icon="@Icons.Material.Filled.Groups" Title="@(string.IsNullOrWhiteSpace(_search) ? "No customers yet" : "No matching customers")"
+                    Description="@(string.IsNullOrWhiteSpace(_search) ? "Add your first customer to start recording sales and payments for them." : "Try a different name, phone, or email.")" />
+    </NoRecordsContent>
+    <LoadingContent>
+        <TableSkeleton Rows="5" />
+    </LoadingContent>
 </MudTable>
+
+<MudDialog @bind-Visible="_showForm" Options="AppDialogOptions.Default">
+    <TitleContent>
+        <MudText Typo="Typo.h6">@(_editingId is null ? "New Customer" : "Edit Customer")</MudText>
+    </TitleContent>
+    <DialogContent>
+        <MudGrid>
+            <MudItem xs="12">
+                <MudTextField @bind-Value="_formName" Label="Name" Variant="Variant.Outlined" Required="true" />
+            </MudItem>
+            <MudItem xs="12" sm="6">
+                <MudTextField @bind-Value="_formPhone" Label="Phone" Variant="Variant.Outlined" />
+            </MudItem>
+            <MudItem xs="12" sm="6">
+                <MudTextField @bind-Value="_formEmail" Label="Email" Variant="Variant.Outlined" />
+            </MudItem>
+            <MudItem xs="12">
+                <MudTextField @bind-Value="_formAddress" Label="Address" Variant="Variant.Outlined" />
+            </MudItem>
+            <MudItem xs="12">
+                <MudNumericField @bind-Value="_formCreditLimit" Label="Credit limit (leave blank for unlimited)" Variant="Variant.Outlined" Min="0" Format="0.00" />
+            </MudItem>
+        </MudGrid>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="CancelForm">Cancel</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="SaveAsync" Disabled="@_isSaving">Save</MudButton>
+    </DialogActions>
+</MudDialog>
 
 }
 
 @code {
+    private static readonly List<BreadcrumbItem> _breadcrumbs =
+    [
+        new("Dashboard", href: "/"),
+        new("Customers", href: null),
+    ];
+
     private IReadOnlyList<CustomerDto> _customers = [];
     private HashSet<string> _permissions = [];
 
@@ -113,6 +131,7 @@ else
     private string? _formPhone;
     private string? _formEmail;
     private string? _formAddress;
+    private decimal? _formCreditLimit;
 
     private bool _canView => _permissions.Contains("customers.view");
     private bool _canEdit => _permissions.Contains("customers.edit");
@@ -165,6 +184,7 @@ else
         _formPhone = null;
         _formEmail = null;
         _formAddress = null;
+        _formCreditLimit = null;
         _showForm = true;
     }
 
@@ -175,6 +195,7 @@ else
         _formPhone = customer.Phone;
         _formEmail = customer.Email;
         _formAddress = customer.Address;
+        _formCreditLimit = customer.CreditLimit;
         _showForm = true;
     }
 
@@ -197,6 +218,7 @@ else
                 Phone = _formPhone,
                 Email = _formEmail,
                 Address = _formAddress,
+                CreditLimit = _formCreditLimit,
             })
             : await ApiClient.UpdateCustomerAsync(_editingId.Value, new UpdateCustomerRequest
             {
@@ -206,17 +228,36 @@ else
                 Address = _formAddress,
             });
 
-        if (result.Success)
-        {
-            Snackbar.Add("Customer saved.", Severity.Success);
-            _showForm = false;
-            await LoadAsync();
-        }
-        else
+        if (!result.Success)
         {
             Snackbar.Add(result.Error?.Message ?? "Failed to save customer.", Severity.Error);
+            _isSaving = false;
+            return;
         }
 
+        // UpdateCustomerRequest (the general edit) doesn't carry CreditLimit — applied
+        // via the dedicated endpoint right after, same two-call-one-dialog approach
+        // used on the Suppliers page for CreditLimit/PaymentTerms.
+        if (_editingId is not null)
+        {
+            var creditResult = await ApiClient.UpdateCustomerCreditLimitAsync(_editingId.Value, new UpdateCustomerCreditLimitRequest
+            {
+                CreditLimit = _formCreditLimit,
+            });
+
+            if (!creditResult.Success)
+            {
+                Snackbar.Add(creditResult.Error?.Message ?? "Customer saved, but credit limit failed to update.", Severity.Warning);
+                _isSaving = false;
+                _showForm = false;
+                await LoadAsync();
+                return;
+            }
+        }
+
+        Snackbar.Add("Customer saved.", Severity.Success);
+        _showForm = false;
+        await LoadAsync();
         _isSaving = false;
     }
 
@@ -248,9 +289,12 @@ else
         }
     }
 
-    private async Task DeleteAsync(long id)
+    private async Task ConfirmDeleteAsync(CustomerDto customer)
     {
-        var result = await ApiClient.DeleteCustomerAsync(id);
+        if (!await DialogService.ConfirmDeleteAsync($"'{customer.Name}'"))
+            return;
+
+        var result = await ApiClient.DeleteCustomerAsync(customer.Id);
         if (result.Success)
         {
             Snackbar.Add("Customer deleted.", Severity.Success);

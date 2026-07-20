@@ -1,0 +1,13 @@
+@namespace RetailSphere.UI.Components.Shared
+
+@* Used as a MudTable's LoadingContent so first-load and refetches show a shape-of-
+   the-data skeleton instead of a blank table body — MudTable's built-in Loading
+   progress bar still runs above it via the Loading parameter. *@
+@for (var i = 0; i < Rows; i++)
+{
+    <MudSkeleton SkeletonType="SkeletonType.Text" Height="40px" Class="mb-2" />
+}
+
+@code {
+    [Parameter] public int Rows { get; set; } = 5;
+}

@@ -4,6 +4,7 @@
 @inject IApiClient ApiClient
 @inject AuthenticationStateProvider AuthStateProvider
 @inject ISnackbar Snackbar
+@inject IDialogService DialogService
 
 <PageTitle>Attributes - RetailSphere</PageTitle>
 
@@ -14,36 +15,27 @@
 else
 {
 
-<MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween" Class="mb-4">
-    <div>
-        <MudText Typo="Typo.h5">Product Attributes</MudText>
-        <MudText Typo="Typo.body2" Style="color: var(--mud-palette-text-secondary);">
-            Reusable attribute types (Size, Color, Material, ...) that product variants select values from.
-        </MudText>
-    </div>
-    @if (_canEdit)
-    {
-        <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" OnClick="ShowCreateForm">
-            New Attribute
-        </MudButton>
-    }
-</MudStack>
-
-@if (_showForm)
-{
-    <MudPaper Class="pa-4 mb-4" Elevation="1">
-        <MudText Typo="Typo.h6" Class="mb-3">New Attribute</MudText>
-        <MudTextField @bind-Value="_formName" Label="Name" Variant="Variant.Outlined" Required="true" Class="mb-3" />
-        <MudStack Row="true" Spacing="2">
-            <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="SaveAsync" Disabled="@_isSaving">Save</MudButton>
-            <MudButton Variant="Variant.Text" OnClick="CancelForm">Cancel</MudButton>
-        </MudStack>
-    </MudPaper>
-}
+<PageHeader Title="Product Attributes"
+            Subtitle="Reusable attribute types (Size, Color, Material, ...) that product variants select values from."
+            Breadcrumbs="_breadcrumbs">
+    <Actions>
+        @if (_canEdit)
+        {
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" OnClick="ShowCreateForm">
+                New Attribute
+            </MudButton>
+        }
+    </Actions>
+</PageHeader>
 
 @if (_isLoading)
 {
-    <MudProgressCircular Indeterminate="true" Class="mt-4" />
+    <TableSkeleton Rows="4" />
+}
+else if (_attributes.Count == 0)
+{
+    <EmptyState Icon="@Icons.Material.Filled.Tune" Title="No attributes yet"
+                Description="Create an attribute type like Size or Color, then add its values." />
 }
 else
 {
@@ -54,7 +46,7 @@ else
                 <MudText Typo="Typo.h6">@(attribute.Name)</MudText>
                 @if (_canEdit)
                 {
-                    <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" OnClick="@(() => DeleteAttributeAsync(attribute.Id))" />
+                    <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" OnClick="@(() => ConfirmDeleteAttributeAsync(attribute))" />
                 }
             </MudStack>
 
@@ -84,9 +76,29 @@ else
     }
 }
 
+<MudDialog @bind-Visible="_showForm" Options="AppDialogOptions.Default">
+    <TitleContent>
+        <MudText Typo="Typo.h6">New Attribute</MudText>
+    </TitleContent>
+    <DialogContent>
+        <MudTextField @bind-Value="_formName" Label="Name" Variant="Variant.Outlined" Required="true" />
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="CancelForm">Cancel</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="SaveAsync" Disabled="@_isSaving">Save</MudButton>
+    </DialogActions>
+</MudDialog>
+
 }
 
 @code {
+    private static readonly List<BreadcrumbItem> _breadcrumbs =
+    [
+        new("Dashboard", href: "/"),
+        new("Catalog", href: null),
+        new("Attributes", href: null),
+    ];
+
     private IReadOnlyList<ProductAttributeDto> _attributes = [];
     private HashSet<string> _permissions = [];
     private readonly Dictionary<long, string> _newValueDrafts = new();
@@ -202,9 +214,12 @@ else
         }
     }
 
-    private async Task DeleteAttributeAsync(long attributeId)
+    private async Task ConfirmDeleteAttributeAsync(ProductAttributeDto attribute)
     {
-        var result = await ApiClient.DeleteProductAttributeAsync(attributeId);
+        if (!await DialogService.ConfirmDeleteAsync($"'{attribute.Name}'", "Any product variants using its values may be affected."))
+            return;
+
+        var result = await ApiClient.DeleteProductAttributeAsync(attribute.Id);
         if (result.Success)
         {
             Snackbar.Add("Attribute deleted.", Severity.Success);

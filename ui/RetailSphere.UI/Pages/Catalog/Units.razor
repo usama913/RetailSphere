@@ -4,6 +4,7 @@
 @inject IApiClient ApiClient
 @inject AuthenticationStateProvider AuthStateProvider
 @inject ISnackbar Snackbar
+@inject IDialogService DialogService
 
 <PageTitle>Units - RetailSphere</PageTitle>
 
@@ -14,40 +15,16 @@
 else
 {
 
-<MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween" Class="mb-4">
-    <div>
-        <MudText Typo="Typo.h5">Units</MudText>
-        <MudText Typo="Typo.body2" Style="color: var(--mud-palette-text-secondary);">Units of measure products are sold and stocked in.</MudText>
-    </div>
-    @if (_canEdit)
-    {
-        <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" OnClick="ShowCreateForm">
-            New Unit
-        </MudButton>
-    }
-</MudStack>
-
-@if (_showForm)
-{
-    <MudPaper Class="pa-4 mb-4" Elevation="1">
-        <MudText Typo="Typo.h6" Class="mb-3">@(_editingId is null ? "New Unit" : "Edit Unit")</MudText>
-        <MudGrid>
-            <MudItem xs="12" sm="4">
-                <MudTextField @bind-Value="_formName" Label="Name" Variant="Variant.Outlined" Required="true" Placeholder="Kilogram" />
-            </MudItem>
-            <MudItem xs="12" sm="4">
-                <MudTextField @bind-Value="_formShortCode" Label="Short code" Variant="Variant.Outlined" Required="true" Placeholder="Kg" />
-            </MudItem>
-            <MudItem xs="12" sm="4" Class="d-flex align-center">
-                <MudCheckBox T="bool" @bind-Value="_formAllowDecimal" Label="Allow decimal quantities" />
-            </MudItem>
-        </MudGrid>
-        <MudStack Row="true" Class="mt-4" Spacing="2">
-            <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="SaveAsync" Disabled="@_isSaving">Save</MudButton>
-            <MudButton Variant="Variant.Text" OnClick="CancelForm">Cancel</MudButton>
-        </MudStack>
-    </MudPaper>
-}
+<PageHeader Title="Units" Subtitle="Units of measure products are sold and stocked in." Breadcrumbs="_breadcrumbs">
+    <Actions>
+        @if (_canEdit)
+        {
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" OnClick="ShowCreateForm">
+                New Unit
+            </MudButton>
+        }
+    </Actions>
+</PageHeader>
 
 <MudTable Items="@_units" Hover="true" Dense="true" Loading="@_isLoading">
     <HeaderContent>
@@ -78,15 +55,52 @@ else
                 {
                     <MudIconButton Icon="@Icons.Material.Filled.PlayCircle" Size="Size.Small" OnClick="@(() => ActivateAsync(context.Id))" />
                 }
-                <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" OnClick="@(() => DeleteAsync(context.Id))" />
+                <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" OnClick="@(() => ConfirmDeleteAsync(context))" />
             }
         </MudTd>
     </RowTemplate>
+    <NoRecordsContent>
+        <EmptyState Icon="@Icons.Material.Filled.Straighten" Title="No units yet"
+                    Description="Add your first unit of measure (e.g. Kilogram, Piece) to start using it on products." />
+    </NoRecordsContent>
+    <LoadingContent>
+        <TableSkeleton Rows="5" />
+    </LoadingContent>
 </MudTable>
+
+<MudDialog @bind-Visible="_showForm" Options="AppDialogOptions.Default">
+    <TitleContent>
+        <MudText Typo="Typo.h6">@(_editingId is null ? "New Unit" : "Edit Unit")</MudText>
+    </TitleContent>
+    <DialogContent>
+        <MudGrid>
+            <MudItem xs="12" sm="6">
+                <MudTextField @bind-Value="_formName" Label="Name" Variant="Variant.Outlined" Required="true" Placeholder="Kilogram" />
+            </MudItem>
+            <MudItem xs="12" sm="6">
+                <MudTextField @bind-Value="_formShortCode" Label="Short code" Variant="Variant.Outlined" Required="true" Placeholder="Kg" />
+            </MudItem>
+            <MudItem xs="12">
+                <MudCheckBox T="bool" @bind-Value="_formAllowDecimal" Label="Allow decimal quantities" />
+            </MudItem>
+        </MudGrid>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="CancelForm">Cancel</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="SaveAsync" Disabled="@_isSaving">Save</MudButton>
+    </DialogActions>
+</MudDialog>
 
 }
 
 @code {
+    private static readonly List<BreadcrumbItem> _breadcrumbs =
+    [
+        new("Dashboard", href: "/"),
+        new("Catalog", href: null),
+        new("Units", href: null),
+    ];
+
     private IReadOnlyList<UnitDto> _units = [];
     private HashSet<string> _permissions = [];
 
@@ -208,9 +222,12 @@ else
         }
     }
 
-    private async Task DeleteAsync(long id)
+    private async Task ConfirmDeleteAsync(UnitDto unit)
     {
-        var result = await ApiClient.DeleteUnitAsync(id);
+        if (!await DialogService.ConfirmDeleteAsync($"'{unit.Name}'"))
+            return;
+
+        var result = await ApiClient.DeleteUnitAsync(unit.Id);
         if (result.Success)
         {
             Snackbar.Add("Unit deleted.", Severity.Success);

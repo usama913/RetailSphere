@@ -1,0 +1,27 @@
+@namespace RetailSphere.UI.Components.Shared
+
+<MudStack AlignItems="AlignItems.Center" Justify="Justify.Center" Spacing="2" Class="pa-8">
+    <MudIcon Icon="@Icon" Style="color: var(--mud-palette-text-disabled); font-size: 48px;" />
+    <MudText Typo="Typo.subtitle1">@Title</MudText>
+    @if (!string.IsNullOrWhiteSpace(Description))
+    {
+        <MudText Typo="Typo.body2" Style="color: var(--mud-palette-text-secondary); text-align: center; max-width: 420px;">@Description</MudText>
+    }
+    @if (ActionContent is not null)
+    {
+        <div class="mt-2">@ActionContent</div>
+    }
+</MudStack>
+
+@code {
+    /// <summary>Defaults to a generic "empty inbox" glyph; pass a more specific icon per module (e.g. Icons.Material.Filled.Category for Categories) when it adds clarity.</summary>
+    [Parameter] public string Icon { get; set; } = MudBlazor.Icons.Material.Filled.Inbox;
+
+    [Parameter, EditorRequired] public string Title { get; set; } = string.Empty;
+
+    /// <summary>Short guidance on what to do next (e.g. "Try a different search" or "Add your first supplier to get started").</summary>
+    [Parameter] public string? Description { get; set; }
+
+    /// <summary>Optional call-to-action button, e.g. re-using the page's own "New X" button/action.</summary>
+    [Parameter] public RenderFragment? ActionContent { get; set; }
+}

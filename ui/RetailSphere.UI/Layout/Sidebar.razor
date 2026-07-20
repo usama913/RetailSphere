@@ -2,94 +2,102 @@
 
 <div class="rs-sidebar">
     <div class="rs-sidebar-header">
-        <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween">
+        <MudStack Row="true" AlignItems="AlignItems.Center" Justify="@(IsExpanded ? Justify.SpaceBetween : Justify.Center)">
             <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
                 <BrandMark Size="34" />
-                <MudText Typo="Typo.h6"><strong>Retail</strong>Sphere</MudText>
+                @if (IsExpanded)
+                {
+                    <MudText Typo="Typo.h6"><strong>Retail</strong>Sphere</MudText>
+                }
             </MudStack>
-            <MudIconButton Icon="@(IsPinned ? Icons.Material.Filled.PushPin : Icons.Material.Outlined.PushPin)"
-                           Size="Size.Small"
-                           Title="@(IsPinned ? "Unpin sidebar" : "Pin sidebar")"
-                           OnClick="TogglePinAsync" />
         </MudStack>
 
-        <MudTextField @bind-Value="_searchString" DebounceInterval="200" Placeholder="Search" Adornment="Adornment.Start"
-                      Variant="Variant.Outlined" AdornmentIcon="@Icons.Material.Filled.Search" IconSize="Size.Medium"
-                      Class="mt-4 menu-quick-search" Margin="Margin.Dense" />
+        @if (IsExpanded)
+        {
+            <MudTextField @bind-Value="_searchString" DebounceInterval="200" Placeholder="Search" Adornment="Adornment.Start"
+                          Variant="Variant.Outlined" AdornmentIcon="@Icons.Material.Filled.Search" IconSize="Size.Medium"
+                          Class="mt-4 menu-quick-search" Margin="Margin.Dense" />
+        }
     </div>
 
     <div class="rs-sidebar-nav">
         <MudNavMenu>
-            <MudNavLink Href="" Match="NavLinkMatch.All" Icon="@Icons.Material.Filled.Dashboard" hidden="@(!IsVisible("Dashboard"))">Dashboard</MudNavLink>
-            <MudNavLink Href="notifications" Match="NavLinkMatch.All" Icon="@Icons.Material.Filled.Notifications" hidden="@(!IsVisible("Notifications"))">Notifications</MudNavLink>
+            <MudNavLink Href="" Match="NavLinkMatch.All" Icon="@Icons.Material.Filled.Dashboard" OnClick="NotifyNavigateAsync" hidden="@(!IsVisible("Dashboard"))">Dashboard</MudNavLink>
+            <MudNavLink Href="notifications" Match="NavLinkMatch.All" Icon="@Icons.Material.Filled.Notifications" OnClick="NotifyNavigateAsync" hidden="@(!IsVisible("Notifications"))">Notifications</MudNavLink>
 
             <MudNavGroup Title="Administration" Icon="@Icons.Material.Filled.AdminPanelSettings" @ref="_adminGroup"
                          hidden="@(!IsVisible("Administration", "Users", "Roles", "Branches", "Audit Logs"))">
-                <MudNavLink Href="admin/users" Icon="@Icons.Material.Filled.People" hidden="@(!HasPermission("admin.users.view") || !IsVisible("Users"))">Users</MudNavLink>
-                <MudNavLink Href="admin/roles" Icon="@Icons.Material.Filled.Security" hidden="@(!HasPermission("admin.roles.view") || !IsVisible("Roles"))">Roles &amp; Permissions</MudNavLink>
-                <MudNavLink Href="admin/branches" Icon="@Icons.Material.Filled.Store" hidden="@(!HasPermission("admin.branches.view") || !IsVisible("Branches"))">Branches</MudNavLink>
-                <MudNavLink Href="admin/audit-logs" Icon="@Icons.Material.Filled.History" hidden="@(!HasPermission("admin.audit.view") || !IsVisible("Audit Logs"))">Audit Logs</MudNavLink>
+                <MudNavLink Href="admin/users" Icon="@Icons.Material.Filled.People" OnClick="NotifyNavigateAsync" hidden="@(!HasPermission("admin.users.view") || !IsVisible("Users"))">Users</MudNavLink>
+                <MudNavLink Href="admin/roles" Icon="@Icons.Material.Filled.Security" OnClick="NotifyNavigateAsync" hidden="@(!HasPermission("admin.roles.view") || !IsVisible("Roles"))">Roles &amp; Permissions</MudNavLink>
+                <MudNavLink Href="admin/branches" Icon="@Icons.Material.Filled.Store" OnClick="NotifyNavigateAsync" hidden="@(!HasPermission("admin.branches.view") || !IsVisible("Branches"))">Branches</MudNavLink>
+                <MudNavLink Href="admin/audit-logs" Icon="@Icons.Material.Filled.History" OnClick="NotifyNavigateAsync" hidden="@(!HasPermission("admin.audit.view") || !IsVisible("Audit Logs"))">Audit Logs</MudNavLink>
             </MudNavGroup>
 
             <MudNavGroup Title="Catalog" Icon="@Icons.Material.Filled.Category" @ref="_catalogGroup"
                          hidden="@(!IsVisible("Catalog", "Products", "Categories", "Brands", "Attributes", "Units"))">
-                <MudNavLink Href="catalog/products" Icon="@Icons.Material.Filled.Checkroom" hidden="@(!HasPermission("catalog.products.view") || !IsVisible("Products"))">Products</MudNavLink>
-                <MudNavLink Href="catalog/categories" Icon="@Icons.Material.Filled.Category" hidden="@(!HasPermission("catalog.categories.view") || !IsVisible("Categories"))">Categories</MudNavLink>
-                <MudNavLink Href="catalog/brands" Icon="@Icons.Material.Filled.BrandingWatermark" hidden="@(!HasPermission("catalog.brands.view") || !IsVisible("Brands"))">Brands</MudNavLink>
-                <MudNavLink Href="catalog/attributes" Icon="@Icons.Material.Filled.Tune" hidden="@(!HasPermission("catalog.products.view") || !IsVisible("Attributes"))">Attributes</MudNavLink>
-                <MudNavLink Href="catalog/units" Icon="@Icons.Material.Filled.Straighten" hidden="@(!HasPermission("catalog.units.view") || !IsVisible("Units"))">Units</MudNavLink>
+                <MudNavLink Href="catalog/products" Icon="@Icons.Material.Filled.Checkroom" OnClick="NotifyNavigateAsync" hidden="@(!HasPermission("catalog.products.view") || !IsVisible("Products"))">Products</MudNavLink>
+                <MudNavLink Href="catalog/categories" Icon="@Icons.Material.Filled.Category" OnClick="NotifyNavigateAsync" hidden="@(!HasPermission("catalog.categories.view") || !IsVisible("Categories"))">Categories</MudNavLink>
+                <MudNavLink Href="catalog/brands" Icon="@Icons.Material.Filled.BrandingWatermark" OnClick="NotifyNavigateAsync" hidden="@(!HasPermission("catalog.brands.view") || !IsVisible("Brands"))">Brands</MudNavLink>
+                <MudNavLink Href="catalog/attributes" Icon="@Icons.Material.Filled.Tune" OnClick="NotifyNavigateAsync" hidden="@(!HasPermission("catalog.products.view") || !IsVisible("Attributes"))">Attributes</MudNavLink>
+                <MudNavLink Href="catalog/units" Icon="@Icons.Material.Filled.Straighten" OnClick="NotifyNavigateAsync" hidden="@(!HasPermission("catalog.units.view") || !IsVisible("Units"))">Units</MudNavLink>
             </MudNavGroup>
 
             <MudNavGroup Title="Inventory" Icon="@Icons.Material.Filled.Inventory" @ref="_inventoryGroup"
                          hidden="@(!IsVisible("Inventory", "Overview", "Stock", "Transfers", "Adjustments"))">
-                <MudNavLink Href="inventory/overview" Icon="@Icons.Material.Filled.Dashboard" hidden="@(!HasPermission("inventory.stock.view") || !IsVisible("Overview"))">Overview</MudNavLink>
-                <MudNavLink Href="inventory/stock" Icon="@Icons.Material.Filled.Inventory2" hidden="@(!HasPermission("inventory.stock.view") || !IsVisible("Stock"))">Branch Stock</MudNavLink>
-                <MudNavLink Href="inventory/transfers" Icon="@Icons.Material.Filled.SwapHoriz" hidden="@(!HasPermission("inventory.transfer.view") || !IsVisible("Transfers"))">Transfers</MudNavLink>
-                <MudNavLink Href="inventory/adjustments" Icon="@Icons.Material.Filled.Tune" hidden="@(!HasPermission("inventory.adjustment.view") || !IsVisible("Adjustments"))">Adjustments</MudNavLink>
+                <MudNavLink Href="inventory/overview" Icon="@Icons.Material.Filled.Dashboard" OnClick="NotifyNavigateAsync" hidden="@(!HasPermission("inventory.stock.view") || !IsVisible("Overview"))">Overview</MudNavLink>
+                <MudNavLink Href="inventory/stock" Icon="@Icons.Material.Filled.Inventory2" OnClick="NotifyNavigateAsync" hidden="@(!HasPermission("inventory.stock.view") || !IsVisible("Stock"))">Branch Stock</MudNavLink>
+                <MudNavLink Href="inventory/transfers" Icon="@Icons.Material.Filled.SwapHoriz" OnClick="NotifyNavigateAsync" hidden="@(!HasPermission("inventory.transfer.view") || !IsVisible("Transfers"))">Transfers</MudNavLink>
+                <MudNavLink Href="inventory/adjustments" Icon="@Icons.Material.Filled.Tune" OnClick="NotifyNavigateAsync" hidden="@(!HasPermission("inventory.adjustment.view") || !IsVisible("Adjustments"))">Adjustments</MudNavLink>
             </MudNavGroup>
 
             <MudNavGroup Title="Purchasing" Icon="@Icons.Material.Filled.LocalShipping" @ref="_purchasingGroup"
                          hidden="@(!IsVisible("Purchasing", "Suppliers", "Purchase Orders", "Purchase Invoices", "Supplier Ledger"))">
-                <MudNavLink Href="purchasing/suppliers" Icon="@Icons.Material.Filled.Business" hidden="@(!HasPermission("purchasing.suppliers.view") || !IsVisible("Suppliers"))">Suppliers</MudNavLink>
-                <MudNavLink Href="purchasing/orders" Icon="@Icons.Material.Filled.ReceiptLong" hidden="@(!HasPermission("purchasing.orders.view") || !IsVisible("Purchase Orders"))">Purchase Orders</MudNavLink>
-                <MudNavLink Href="purchasing/invoices" Icon="@Icons.Material.Filled.RequestQuote" hidden="@(!HasPermission("purchasing.invoices.view") || !IsVisible("Purchase Invoices"))">Purchase Invoices</MudNavLink>
-                <MudNavLink Href="purchasing/supplier-ledger" Icon="@Icons.Material.Filled.MenuBook" hidden="@(!HasPermission("purchasing.ledger.view") || !IsVisible("Supplier Ledger"))">Supplier Ledger</MudNavLink>
+                <MudNavLink Href="purchasing/suppliers" Icon="@Icons.Material.Filled.Business" OnClick="NotifyNavigateAsync" hidden="@(!HasPermission("purchasing.suppliers.view") || !IsVisible("Suppliers"))">Suppliers</MudNavLink>
+                <MudNavLink Href="purchasing/orders" Icon="@Icons.Material.Filled.ReceiptLong" OnClick="NotifyNavigateAsync" hidden="@(!HasPermission("purchasing.orders.view") || !IsVisible("Purchase Orders"))">Purchase Orders</MudNavLink>
+                <MudNavLink Href="purchasing/invoices" Icon="@Icons.Material.Filled.RequestQuote" OnClick="NotifyNavigateAsync" hidden="@(!HasPermission("purchasing.invoices.view") || !IsVisible("Purchase Invoices"))">Purchase Invoices</MudNavLink>
+                <MudNavLink Href="purchasing/supplier-ledger" Icon="@Icons.Material.Filled.MenuBook" OnClick="NotifyNavigateAsync" hidden="@(!HasPermission("purchasing.ledger.view") || !IsVisible("Supplier Ledger"))">Supplier Ledger</MudNavLink>
             </MudNavGroup>
 
             <MudNavGroup Title="Sales" Icon="@Icons.Material.Filled.PointOfSale" @ref="_salesGroup"
                          hidden="@(!IsVisible("Sales", "POS", "Orders", "Returns", "Customer Payments", "Customer Ledger"))">
-                <MudNavLink Href="sales/pos" Icon="@Icons.Material.Filled.ShoppingCart" hidden="@(!HasPermission("sales.pos.create") || !IsVisible("POS"))">Point of Sale</MudNavLink>
-                <MudNavLink Href="sales/orders" Icon="@Icons.Material.Filled.Receipt" hidden="@(!HasPermission("sales.orders.view") || !IsVisible("Orders"))">Sales Orders</MudNavLink>
-                <MudNavLink Href="sales/returns" Icon="@Icons.Material.Filled.AssignmentReturn" hidden="@(!HasPermission("sales.returns.view") || !IsVisible("Returns"))">Returns &amp; Exchanges</MudNavLink>
-                <MudNavLink Href="sales/customer-payments" Icon="@Icons.Material.Filled.Payments" hidden="@(!HasPermission("customers.payments.view") || !IsVisible("Customer Payments"))">Customer Payments</MudNavLink>
-                <MudNavLink Href="sales/customer-ledger" Icon="@Icons.Material.Filled.MenuBook" hidden="@(!HasPermission("customers.ledger.view") || !IsVisible("Customer Ledger"))">Customer Ledger</MudNavLink>
+                <MudNavLink Href="sales/pos" Icon="@Icons.Material.Filled.ShoppingCart" OnClick="NotifyNavigateAsync" hidden="@(!HasPermission("sales.pos.create") || !IsVisible("POS"))">Point of Sale</MudNavLink>
+                <MudNavLink Href="sales/orders" Icon="@Icons.Material.Filled.Receipt" OnClick="NotifyNavigateAsync" hidden="@(!HasPermission("sales.orders.view") || !IsVisible("Orders"))">Sales Orders</MudNavLink>
+                <MudNavLink Href="sales/returns" Icon="@Icons.Material.Filled.AssignmentReturn" OnClick="NotifyNavigateAsync" hidden="@(!HasPermission("sales.returns.view") || !IsVisible("Returns"))">Returns &amp; Exchanges</MudNavLink>
+                <MudNavLink Href="sales/customer-payments" Icon="@Icons.Material.Filled.Payments" OnClick="NotifyNavigateAsync" hidden="@(!HasPermission("customers.payments.view") || !IsVisible("Customer Payments"))">Customer Payments</MudNavLink>
+                <MudNavLink Href="sales/customer-ledger" Icon="@Icons.Material.Filled.MenuBook" OnClick="NotifyNavigateAsync" hidden="@(!HasPermission("customers.ledger.view") || !IsVisible("Customer Ledger"))">Customer Ledger</MudNavLink>
             </MudNavGroup>
 
-            <MudNavLink Href="customers" Icon="@Icons.Material.Filled.Groups" hidden="@(!HasPermission("customers.view") || !IsVisible("Customers"))">Customers</MudNavLink>
+            <MudNavLink Href="customers" Icon="@Icons.Material.Filled.Groups" OnClick="NotifyNavigateAsync" hidden="@(!HasPermission("customers.view") || !IsVisible("Customers"))">Customers</MudNavLink>
 
             <MudNavGroup Title="Finance" Icon="@Icons.Material.Filled.AccountBalance" @ref="_financeGroup"
                          hidden="@(!IsVisible("Finance", "Cash Register", "Expenses", "Reports"))">
-                <MudNavLink Href="finance/cash-register" Icon="@Icons.Material.Filled.PointOfSale" hidden="@(!HasPermission("finance.cashregister.view") || !IsVisible("Cash Register"))">Cash Register</MudNavLink>
-                <MudNavLink Href="finance/expenses" Icon="@Icons.Material.Filled.Payments" hidden="@(!HasPermission("finance.expenses.view") || !IsVisible("Expenses"))">Expenses</MudNavLink>
-                <MudNavLink Href="reporting/dashboard" Icon="@Icons.Material.Filled.BarChart" hidden="@(!HasPermission("reporting.view") || !IsVisible("Reports"))">Reports</MudNavLink>
+                <MudNavLink Href="finance/cash-register" Icon="@Icons.Material.Filled.PointOfSale" OnClick="NotifyNavigateAsync" hidden="@(!HasPermission("finance.cashregister.view") || !IsVisible("Cash Register"))">Cash Register</MudNavLink>
+                <MudNavLink Href="finance/expenses" Icon="@Icons.Material.Filled.Payments" OnClick="NotifyNavigateAsync" hidden="@(!HasPermission("finance.expenses.view") || !IsVisible("Expenses"))">Expenses</MudNavLink>
+                <MudNavLink Href="reporting/dashboard" Icon="@Icons.Material.Filled.BarChart" OnClick="NotifyNavigateAsync" hidden="@(!HasPermission("reporting.view") || !IsVisible("Reports"))">Reports</MudNavLink>
             </MudNavGroup>
         </MudNavMenu>
     </div>
 
-    <div class="rs-sidebar-footer">
-        <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="3">
-            <MudAvatar Color="Color.Primary" Variant="Variant.Filled" Size="Size.Small">@_initials</MudAvatar>
-            <MudStack Spacing="0" Style="overflow: hidden;">
-                <MudText Typo="Typo.body2" Style="font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">@_email</MudText>
-                <MudText Typo="Typo.caption" Style="color: var(--mud-palette-text-secondary);">@_roleSummary</MudText>
+    @if (IsExpanded)
+    {
+        <div class="rs-sidebar-footer">
+            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="3">
+                <MudAvatar Color="Color.Primary" Variant="Variant.Filled" Size="Size.Small">@_initials</MudAvatar>
+                <MudStack Spacing="0" Style="overflow: hidden;">
+                    <MudText Typo="Typo.body2" Style="font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">@_email</MudText>
+                    <MudText Typo="Typo.caption" Style="color: var(--mud-palette-text-secondary);">@_roleSummary</MudText>
+                </MudStack>
             </MudStack>
-        </MudStack>
-    </div>
+        </div>
+    }
 </div>
 
 @code {
-    [Parameter] public bool IsPinned { get; set; }
-    [Parameter] public EventCallback<bool> IsPinnedChanged { get; set; }
+    /// <summary>True = full sidebar with labels/search/footer; false = MudDrawer's Mini (icon-rail) state — driven entirely by MainLayout's single hamburger toggle.</summary>
+    [Parameter] public bool IsExpanded { get; set; } = true;
+
+    /// <summary>Fired when any nav link is clicked, so MainLayout can auto-close the drawer on mobile/tablet where it's an overlay (no-op there on desktop, since collapsing on every click would be annoying once the sidebar is pinned open).</summary>
+    [Parameter] public EventCallback OnNavigate { get; set; }
 
     private string? _searchString;
     private HashSet<string> _permissions = new();
@@ -130,11 +138,7 @@
         return names.Any(n => n.Contains(_searchString, StringComparison.InvariantCultureIgnoreCase));
     }
 
-    private async Task TogglePinAsync()
-    {
-        IsPinned = !IsPinned;
-        await IsPinnedChanged.InvokeAsync(IsPinned);
-    }
+    private Task NotifyNavigateAsync() => OnNavigate.InvokeAsync();
 
     public void CloseAllNavGroups()
     {

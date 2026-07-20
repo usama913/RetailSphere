@@ -3,6 +3,7 @@
 @inject IApiClient ApiClient
 @inject AuthenticationStateProvider AuthStateProvider
 @inject ISnackbar Snackbar
+@inject IDialogService DialogService
 
 <PageTitle>Branches - RetailSphere</PageTitle>
 
@@ -13,46 +14,16 @@
 else
 {
 
-<MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween" Class="mb-4">
-    <div>
-        <MudText Typo="Typo.h5">Branches</MudText>
-        <MudText Typo="Typo.body2" Style="color: var(--mud-palette-text-secondary);">Physical stores this account operates.</MudText>
-    </div>
-    @if (_canCreate)
-    {
-        <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" OnClick="ShowCreateForm">
-            New Branch
-        </MudButton>
-    }
-</MudStack>
-
-@if (_showForm)
-{
-    <MudPaper Class="pa-4 mb-4" Elevation="1">
-        <MudText Typo="Typo.h6" Class="mb-3">@(_editingId is null ? "New Branch" : "Edit Branch")</MudText>
-        <MudGrid>
-            <MudItem xs="12" sm="6">
-                <MudTextField @bind-Value="_formName" Label="Name" Variant="Variant.Outlined" Required="true" />
-            </MudItem>
-            <MudItem xs="12" sm="6">
-                <MudTextField @bind-Value="_formCode" Label="Code" Variant="Variant.Outlined" Required="true" Disabled="@(_editingId is not null)" />
-            </MudItem>
-            <MudItem xs="12" sm="6">
-                <MudTextField @bind-Value="_formAddress" Label="Address" Variant="Variant.Outlined" />
-            </MudItem>
-            <MudItem xs="12" sm="6">
-                <MudTextField @bind-Value="_formCity" Label="City" Variant="Variant.Outlined" />
-            </MudItem>
-            <MudItem xs="12" sm="6">
-                <MudTextField @bind-Value="_formCurrencyCode" Label="Currency Code" Variant="Variant.Outlined" Required="true" MaxLength="3" />
-            </MudItem>
-        </MudGrid>
-        <MudStack Row="true" Class="mt-4" Spacing="2">
-            <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="SaveAsync" Disabled="@_isSaving">Save</MudButton>
-            <MudButton Variant="Variant.Text" OnClick="CancelForm">Cancel</MudButton>
-        </MudStack>
-    </MudPaper>
-}
+<PageHeader Title="Branches" Subtitle="Physical stores this account operates." Breadcrumbs="_breadcrumbs">
+    <Actions>
+        @if (_canCreate)
+        {
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" OnClick="ShowCreateForm">
+                New Branch
+            </MudButton>
+        }
+    </Actions>
+</PageHeader>
 
 <MudTable Items="@_branches" Hover="true" Dense="true" Loading="@_isLoading">
     <HeaderContent>
@@ -91,11 +62,54 @@ else
             }
         </MudTd>
     </RowTemplate>
+    <NoRecordsContent>
+        <EmptyState Icon="@Icons.Material.Filled.Store" Title="No branches yet"
+                    Description="Add your first branch to start assigning stock, staff, and sales to it." />
+    </NoRecordsContent>
+    <LoadingContent>
+        <TableSkeleton Rows="5" />
+    </LoadingContent>
 </MudTable>
+
+<MudDialog @bind-Visible="_showForm" Options="AppDialogOptions.Default">
+    <TitleContent>
+        <MudText Typo="Typo.h6">@(_editingId is null ? "New Branch" : "Edit Branch")</MudText>
+    </TitleContent>
+    <DialogContent>
+        <MudGrid>
+            <MudItem xs="12" sm="6">
+                <MudTextField @bind-Value="_formName" Label="Name" Variant="Variant.Outlined" Required="true" />
+            </MudItem>
+            <MudItem xs="12" sm="6">
+                <MudTextField @bind-Value="_formCode" Label="Code" Variant="Variant.Outlined" Required="true" Disabled="@(_editingId is not null)" />
+            </MudItem>
+            <MudItem xs="12" sm="6">
+                <MudTextField @bind-Value="_formAddress" Label="Address" Variant="Variant.Outlined" />
+            </MudItem>
+            <MudItem xs="12" sm="6">
+                <MudTextField @bind-Value="_formCity" Label="City" Variant="Variant.Outlined" />
+            </MudItem>
+            <MudItem xs="12" sm="6">
+                <MudTextField @bind-Value="_formCurrencyCode" Label="Currency Code" Variant="Variant.Outlined" Required="true" MaxLength="3" />
+            </MudItem>
+        </MudGrid>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="CancelForm">Cancel</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="SaveAsync" Disabled="@_isSaving">Save</MudButton>
+    </DialogActions>
+</MudDialog>
 
 }
 
 @code {
+    private static readonly List<BreadcrumbItem> _breadcrumbs =
+    [
+        new("Dashboard", href: "/"),
+        new("Administration", href: null),
+        new("Branches", href: null),
+    ];
+
     private IReadOnlyList<BranchDto> _branches = [];
     private HashSet<string> _permissions = [];
     private bool _isLoading = true;

@@ -3,6 +3,7 @@
 @inject IApiClient ApiClient
 @inject AuthenticationStateProvider AuthStateProvider
 @inject ISnackbar Snackbar
+@inject IDialogService DialogService
 
 <PageTitle>Roles - RetailSphere</PageTitle>
 
@@ -13,23 +14,59 @@
 else
 {
 
-<MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween" Class="mb-4">
-    <div>
-        <MudText Typo="Typo.h5">Roles &amp; Permissions</MudText>
-        <MudText Typo="Typo.body2" Style="color: var(--mud-palette-text-secondary);">Bundles of permissions assigned to users.</MudText>
-    </div>
-    @if (_canCreate)
-    {
-        <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" OnClick="ShowCreateForm">
-            New Role
-        </MudButton>
-    }
-</MudStack>
+<PageHeader Title="Roles &amp; Permissions" Subtitle="Bundles of permissions assigned to users." Breadcrumbs="_breadcrumbs">
+    <Actions>
+        @if (_canCreate)
+        {
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" OnClick="ShowCreateForm">
+                New Role
+            </MudButton>
+        }
+    </Actions>
+</PageHeader>
 
-@if (_showForm)
-{
-    <MudPaper Class="pa-4 mb-4" Elevation="1">
-        <MudText Typo="Typo.h6" Class="mb-3">@(_editingId is null ? "New Role" : "Edit Role")</MudText>
+<MudTable Items="@_roles" Hover="true" Dense="true" Loading="@_isLoading">
+    <HeaderContent>
+        <MudTh>Name</MudTh>
+        <MudTh>Description</MudTh>
+        <MudTh>Type</MudTh>
+        <MudTh>Permissions</MudTh>
+        <MudTh>Actions</MudTh>
+    </HeaderContent>
+    <RowTemplate>
+        <MudTd DataLabel="Name">@context.Name</MudTd>
+        <MudTd DataLabel="Description">@context.Description</MudTd>
+        <MudTd DataLabel="Type">
+            <MudChip T="string" Size="Size.Small" Color="@(context.IsSystemRole ? Color.Secondary : Color.Default)">
+                @(context.IsSystemRole ? "System" : "Custom")
+            </MudChip>
+        </MudTd>
+        <MudTd DataLabel="Permissions">@context.PermissionIds.Count</MudTd>
+        <MudTd DataLabel="Actions">
+            @if (_canEdit && !context.IsSystemRole)
+            {
+                <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small" OnClick="@(() => ShowEditForm(context))" />
+            }
+            @if (_canDelete && !context.IsSystemRole)
+            {
+                <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" OnClick="@(() => ConfirmDeleteAsync(context))" />
+            }
+        </MudTd>
+    </RowTemplate>
+    <NoRecordsContent>
+        <EmptyState Icon="@Icons.Material.Filled.Security" Title="No custom roles yet"
+                    Description="Create a role to group permissions together, then assign it to users." />
+    </NoRecordsContent>
+    <LoadingContent>
+        <TableSkeleton Rows="4" />
+    </LoadingContent>
+</MudTable>
+
+<MudDialog @bind-Visible="_showForm" Options="AppDialogOptions.Large">
+    <TitleContent>
+        <MudText Typo="Typo.h6">@(_editingId is null ? "New Role" : "Edit Role")</MudText>
+    </TitleContent>
+    <DialogContent>
         <MudGrid>
             <MudItem xs="12" sm="6">
                 <MudTextField @bind-Value="_formName" Label="Name" Variant="Variant.Outlined" Required="true" />
@@ -56,47 +93,23 @@ else
                 }
             </MudGrid>
         }
-
-        <MudStack Row="true" Class="mt-4" Spacing="2">
-            <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="SaveAsync" Disabled="@_isSaving">Save</MudButton>
-            <MudButton Variant="Variant.Text" OnClick="CancelForm">Cancel</MudButton>
-        </MudStack>
-    </MudPaper>
-}
-
-<MudTable Items="@_roles" Hover="true" Dense="true" Loading="@_isLoading">
-    <HeaderContent>
-        <MudTh>Name</MudTh>
-        <MudTh>Description</MudTh>
-        <MudTh>Type</MudTh>
-        <MudTh>Permissions</MudTh>
-        <MudTh>Actions</MudTh>
-    </HeaderContent>
-    <RowTemplate>
-        <MudTd DataLabel="Name">@context.Name</MudTd>
-        <MudTd DataLabel="Description">@context.Description</MudTd>
-        <MudTd DataLabel="Type">
-            <MudChip T="string" Size="Size.Small" Color="@(context.IsSystemRole ? Color.Secondary : Color.Default)">
-                @(context.IsSystemRole ? "System" : "Custom")
-            </MudChip>
-        </MudTd>
-        <MudTd DataLabel="Permissions">@context.PermissionIds.Count</MudTd>
-        <MudTd DataLabel="Actions">
-            @if (_canEdit && !context.IsSystemRole)
-            {
-                <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small" OnClick="@(() => ShowEditForm(context))" />
-            }
-            @if (_canDelete && !context.IsSystemRole)
-            {
-                <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" OnClick="@(() => DeleteAsync(context.Id))" />
-            }
-        </MudTd>
-    </RowTemplate>
-</MudTable>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="CancelForm">Cancel</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="SaveAsync" Disabled="@_isSaving">Save</MudButton>
+    </DialogActions>
+</MudDialog>
 
 }
 
 @code {
+    private static readonly List<BreadcrumbItem> _breadcrumbs =
+    [
+        new("Dashboard", href: "/"),
+        new("Administration", href: null),
+        new("Roles & Permissions", href: null),
+    ];
+
     private IReadOnlyList<RoleDto> _roles = [];
     private IReadOnlyList<PermissionDto> _allPermissions = [];
     private Dictionary<string, List<PermissionDto>> _permissionsByModule = new();
@@ -233,9 +246,12 @@ else
         _isSaving = false;
     }
 
-    private async Task DeleteAsync(long id)
+    private async Task ConfirmDeleteAsync(RoleDto role)
     {
-        var result = await ApiClient.DeleteRoleAsync(id);
+        if (!await DialogService.ConfirmDeleteAsync($"the '{role.Name}' role", "Any users currently assigned this role will lose the permissions it grants."))
+            return;
+
+        var result = await ApiClient.DeleteRoleAsync(role.Id);
         if (result.Success)
         {
             Snackbar.Add("Role deleted.", Severity.Success);

@@ -13,90 +13,20 @@
 else
 {
 
-<MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween" Class="mb-4">
-    <div>
-        <MudText Typo="Typo.h5">Users</MudText>
-        <MudText Typo="Typo.body2" Style="color: var(--mud-palette-text-secondary);">People who can sign in to RetailSphere.</MudText>
-    </div>
-    @if (_canCreate)
-    {
-        <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" OnClick="ShowCreateForm">
-            New User
-        </MudButton>
-    }
-</MudStack>
+<PageHeader Title="Users" Subtitle="People who can sign in to RetailSphere." Breadcrumbs="_breadcrumbs">
+    <Actions>
+        @if (_canCreate)
+        {
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" OnClick="ShowCreateForm">
+                New User
+            </MudButton>
+        }
+    </Actions>
+</PageHeader>
 
 <MudTextField T="string" Value="@_search" ValueChanged="OnSearchChanged" Label="Search by name or email"
               Variant="Variant.Outlined" Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search"
               Class="mb-4" Immediate="true" DebounceInterval="300" />
-
-@if (_showForm)
-{
-    <MudPaper Class="pa-4 mb-4" Elevation="1">
-        <MudText Typo="Typo.h6" Class="mb-3">@(_editingId is null ? "New User" : "Edit User")</MudText>
-        <MudGrid>
-            @if (_editingId is null)
-            {
-                <MudItem xs="12" sm="6">
-                    <MudTextField @bind-Value="_formEmail" Label="Email" Variant="Variant.Outlined" Required="true" InputType="InputType.Email" />
-                </MudItem>
-                <MudItem xs="12" sm="6">
-                    <MudTextField @bind-Value="_formPassword" Label="Password" Variant="Variant.Outlined" Required="true" InputType="InputType.Password" />
-                </MudItem>
-            }
-            <MudItem xs="12" sm="6">
-                <MudTextField @bind-Value="_formFirstName" Label="First Name" Variant="Variant.Outlined" Required="true" />
-            </MudItem>
-            <MudItem xs="12" sm="6">
-                <MudTextField @bind-Value="_formLastName" Label="Last Name" Variant="Variant.Outlined" Required="true" />
-            </MudItem>
-            <MudItem xs="12" sm="6">
-                <MudSelect T="long?" @bind-Value="_formBranchId" Label="Branch" Variant="Variant.Outlined">
-                    <MudSelectItem T="long?" Value="@((long?)null)">— No branch (all branches) —</MudSelectItem>
-                    @foreach (var branch in _branches)
-                    {
-                        <MudSelectItem T="long?" Value="@((long?)branch.Id)">@branch.Name</MudSelectItem>
-                    }
-                </MudSelect>
-            </MudItem>
-        </MudGrid>
-
-        <MudText Typo="Typo.subtitle1" Class="mt-4 mb-2">Roles</MudText>
-        <MudGrid>
-            @foreach (var role in _roles)
-            {
-                <MudItem xs="12" sm="6" md="4">
-                    <MudCheckBox T="bool"
-                                 Value="@_selectedRoleIds.Contains(role.Id)"
-                                 ValueChanged="@((bool v) => ToggleRole(role.Id, v))"
-                                 Label="@role.Name"
-                                 Dense="true" />
-                </MudItem>
-            }
-        </MudGrid>
-
-        <MudStack Row="true" Class="mt-4" Spacing="2">
-            <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="SaveAsync" Disabled="@_isSaving">Save</MudButton>
-            <MudButton Variant="Variant.Text" OnClick="CancelForm">Cancel</MudButton>
-        </MudStack>
-
-        @if (_editingId is not null)
-        {
-            <MudDivider Class="my-4" />
-            <MudText Typo="Typo.subtitle1" Class="mb-2">Reset Password</MudText>
-            <MudGrid>
-                <MudItem xs="12" sm="6">
-                    <MudTextField @bind-Value="_resetPassword" Label="New Password" Variant="Variant.Outlined" InputType="InputType.Password" />
-                </MudItem>
-                <MudItem xs="12" sm="6" Class="d-flex align-center">
-                    <MudButton Variant="Variant.Outlined" Color="Color.Secondary" OnClick="ResetPasswordAsync" Disabled="@_isSaving">
-                        Reset Password
-                    </MudButton>
-                </MudItem>
-            </MudGrid>
-        }
-    </MudPaper>
-}
 
 <MudTable Items="@_users" Hover="true" Dense="true" Loading="@_isLoading">
     <HeaderContent>
@@ -142,6 +72,13 @@ else
             }
         </MudTd>
     </RowTemplate>
+    <NoRecordsContent>
+        <EmptyState Icon="@Icons.Material.Filled.People" Title="@(string.IsNullOrWhiteSpace(_search) ? "No users yet" : "No matching users")"
+                    Description="@(string.IsNullOrWhiteSpace(_search) ? "Add your first user so someone besides you can sign in." : "Try a different name or email.")" />
+    </NoRecordsContent>
+    <LoadingContent>
+        <TableSkeleton Rows="5" />
+    </LoadingContent>
 </MudTable>
 
 <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.Center" Class="mt-4" Spacing="4">
@@ -150,10 +87,85 @@ else
     <MudIconButton Icon="@Icons.Material.Filled.ChevronRight" Disabled="@(_page >= _totalPages)" OnClick="@(() => ChangePageAsync(_page + 1))" />
 </MudStack>
 
+<MudDialog @bind-Visible="_showForm" Options="AppDialogOptions.Medium">
+    <TitleContent>
+        <MudText Typo="Typo.h6">@(_editingId is null ? "New User" : "Edit User")</MudText>
+    </TitleContent>
+    <DialogContent>
+        <MudGrid>
+            @if (_editingId is null)
+            {
+                <MudItem xs="12" sm="6">
+                    <MudTextField @bind-Value="_formEmail" Label="Email" Variant="Variant.Outlined" Required="true" InputType="InputType.Email" />
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <MudTextField @bind-Value="_formPassword" Label="Password" Variant="Variant.Outlined" Required="true" InputType="InputType.Password" />
+                </MudItem>
+            }
+            <MudItem xs="12" sm="6">
+                <MudTextField @bind-Value="_formFirstName" Label="First Name" Variant="Variant.Outlined" Required="true" />
+            </MudItem>
+            <MudItem xs="12" sm="6">
+                <MudTextField @bind-Value="_formLastName" Label="Last Name" Variant="Variant.Outlined" Required="true" />
+            </MudItem>
+            <MudItem xs="12" sm="6">
+                <MudSelect T="long?" @bind-Value="_formBranchId" Label="Branch" Variant="Variant.Outlined">
+                    <MudSelectItem T="long?" Value="@((long?)null)">— No branch (all branches) —</MudSelectItem>
+                    @foreach (var branch in _branches)
+                    {
+                        <MudSelectItem T="long?" Value="@((long?)branch.Id)">@branch.Name</MudSelectItem>
+                    }
+                </MudSelect>
+            </MudItem>
+        </MudGrid>
+
+        <MudText Typo="Typo.subtitle1" Class="mt-4 mb-2">Roles</MudText>
+        <MudGrid>
+            @foreach (var role in _roles)
+            {
+                <MudItem xs="12" sm="6" md="4">
+                    <MudCheckBox T="bool"
+                                 Value="@_selectedRoleIds.Contains(role.Id)"
+                                 ValueChanged="@((bool v) => ToggleRole(role.Id, v))"
+                                 Label="@role.Name"
+                                 Dense="true" />
+                </MudItem>
+            }
+        </MudGrid>
+
+        @if (_editingId is not null)
+        {
+            <MudDivider Class="my-4" />
+            <MudText Typo="Typo.subtitle1" Class="mb-2">Reset Password</MudText>
+            <MudGrid>
+                <MudItem xs="12" sm="6">
+                    <MudTextField @bind-Value="_resetPassword" Label="New Password" Variant="Variant.Outlined" InputType="InputType.Password" />
+                </MudItem>
+                <MudItem xs="12" sm="6" Class="d-flex align-center">
+                    <MudButton Variant="Variant.Outlined" Color="Color.Secondary" OnClick="ResetPasswordAsync" Disabled="@_isSaving">
+                        Reset Password
+                    </MudButton>
+                </MudItem>
+            </MudGrid>
+        }
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="CancelForm">Cancel</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="SaveAsync" Disabled="@_isSaving">Save</MudButton>
+    </DialogActions>
+</MudDialog>
+
 }
 
 @code {
     private const int PageSize = 25;
+
+    private static readonly List<BreadcrumbItem> _breadcrumbs =
+    [
+        new("Dashboard", href: "/"),
+        new("Administration", href: null),
+        new("Users", href: null),
+    ];
 
     private IReadOnlyList<UserDto> _users = [];
     private IReadOnlyList<BranchDto> _branches = [];

@@ -8,15 +8,27 @@
 <MudSnackbarProvider />
 
 <MudLayout>
-    <RetailSphereHeader OnToggleDrawer="DrawerToggle" OnToggleTheme="ToggleThemeAsync" IsDarkMode="_isDarkMode" />
+    <RetailSphereHeader OnToggleDrawer="ToggleDrawerAsync" OnToggleTheme="ToggleThemeAsync" IsDarkMode="_isDarkMode" />
 
-    <MudDrawer @bind-Open="_drawerOpen"
-               @bind-Open:after="OnDrawerOpenChanged"
+    @* Single source of truth for the sidebar: _drawerOpen. On desktop (>= Md) this
+       toggles between the full sidebar and a Mini (icon-rail) collapse — MudBlazor's
+       Mini variant automatically shows only icons for MudNavMenu items at that width.
+       Below the Md breakpoint, MudDrawer treats Mini the same way it already did
+       before this change: an overlay that's hidden until the hamburger opens it, and
+       an OpenChanged callback that closes it again once a link is clicked or the
+       backdrop is tapped — the exact "hidden by default, hamburger opens/closes it
+       as an overlay" behavior asked for. The previous version's separate "pinned"
+       concept (Persistent vs Mini variant, chosen by a push-pin button in the
+       sidebar itself) is gone: it made the header's hamburger silently do nothing
+       once pinned, which is exactly the reported bug. Now there is exactly one
+       control with one consistent job. *@
+    <MudDrawer Open="_drawerOpen"
+               OpenChanged="OnDrawerOpenChangedAsync"
                Class="main-menu"
                Breakpoint="Breakpoint.Md"
-               Variant="@(_sidebarPinned ? DrawerVariant.Persistent : DrawerVariant.Mini)"
-               OpenMiniOnHover="@(!_sidebarPinned)">
-        <Sidebar @ref="_sidebarRef" @bind-IsPinned="_sidebarPinned" @bind-IsPinned:after="OnSidebarPinnedChanged" />
+               ClipMode="DrawerClipMode.Always"
+               Variant="DrawerVariant.Mini">
+        <Sidebar @ref="_sidebarRef" IsExpanded="_drawerOpen" OnNavigate="CloseOnMobileAsync" />
     </MudDrawer>
 
     <MudMainContent Class="rs-main-content">
@@ -28,8 +40,7 @@
 
 @code {
     private Sidebar? _sidebarRef;
-    private bool _drawerOpen;
-    private bool _sidebarPinned;
+    private bool _drawerOpen = true;
     private bool _isDarkMode;
 
     // Full branded palette — the previous version only set Primary/AppbarBackground/
@@ -41,7 +52,7 @@
         LayoutProperties = new LayoutProperties
         {
             DrawerWidthLeft = "260px",
-            DrawerMiniWidthLeft = "64px",
+            DrawerMiniWidthLeft = "72px",
             DefaultBorderRadius = "8px",
         },
         PaletteLight = new PaletteLight
@@ -93,31 +104,22 @@
 
     protected override async Task OnInitializedAsync()
     {
-        _sidebarPinned = await LocalStorage.GetItemAsync<bool>("sidebar_pinned");
+        _drawerOpen = await LocalStorage.GetItemAsync<bool?>("sidebar_expanded") ?? true;
         _isDarkMode = await LocalStorage.GetItemAsync<bool>("theme_dark");
-        _drawerOpen = _sidebarPinned;
     }
 
-    private async Task OnSidebarPinnedChanged()
+    private async Task OnDrawerOpenChangedAsync(bool open)
     {
-        _drawerOpen = _sidebarPinned;
-        await LocalStorage.SetItemAsync("sidebar_pinned", _sidebarPinned);
-        StateHasChanged();
-    }
-
-    private void OnDrawerOpenChanged()
-    {
-        if (!_drawerOpen && !_sidebarPinned)
-            _sidebarRef?.CloseAllNavGroups();
-    }
-
-    private void DrawerToggle()
-    {
-        if (_sidebarPinned) return;
-        _drawerOpen = !_drawerOpen;
+        _drawerOpen = open;
+        await LocalStorage.SetItemAsync("sidebar_expanded", _drawerOpen);
         if (!_drawerOpen)
             _sidebarRef?.CloseAllNavGroups();
     }
+
+    private Task ToggleDrawerAsync() => OnDrawerOpenChangedAsync(!_drawerOpen);
+
+    /// <summary>On a mobile/tablet overlay, following a nav link should close the drawer the same way clicking the backdrop would — otherwise it just sits open over the new page.</summary>
+    private Task CloseOnMobileAsync() => _drawerOpen ? OnDrawerOpenChangedAsync(false) : Task.CompletedTask;
 
     private async Task ToggleThemeAsync()
     {
